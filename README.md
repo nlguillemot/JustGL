@@ -21,7 +21,7 @@ Just GL it!
     
     void InitGL()
     {
-        // TODO: One time initialization
+        // TODO: One-time initialization
     }
     
     void ResizeGL(int width, int height)
