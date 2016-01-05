@@ -26,7 +26,7 @@ Just GL it!
     
     void ResizeGL(int width, int height)
     {
-        // TODO: Resize any screen-sized textures and etc.
+        // TODO: Update camera for new aspect ratio
     }
     
     void PaintGL()
