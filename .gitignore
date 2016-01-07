@@ -1,0 +1,8 @@
+*.sdf
+*.opendb
+
+# stuff for my testing purposes
+JustGL.sln
+JustGL.vcxproj
+JustGL.vcxproj.filters
+test.cpp
