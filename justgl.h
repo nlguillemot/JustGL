@@ -2923,7 +2923,7 @@ typedef struct GLDrawElementsIndirectCommand
     GLuint count;
     GLuint primCount;
     GLuint firstIndex;
-    GLint  baseVertex;
+    GLuint  baseVertex;
     GLuint baseInstance;
 } GLDrawElementsIndirectCommand;
 

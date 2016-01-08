@@ -5,7 +5,7 @@
 #include <cassert>
 #include <cerrno>
 
-bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGPUObject)
+bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPalette)
 {
     MappedFile mapping = MapFileForRead(filename);
     if (!mapping.Data)
@@ -197,6 +197,23 @@ bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGP
             i += len;
             return true;
         }
+    };
+
+    auto acceptString = [mem, &i, &size, isWS](std::string* s)
+    {
+        uint64_t old_i = i;
+        while (i < size && !isWS(mem[i]))
+        {
+            i++;
+        }
+        
+        if (i - old_i == 0)
+        {
+            return false;
+        }
+
+        *s = std::string(&mem[old_i], &mem[i]);
+        return true;
     };
 
     auto acceptHS = [mem, &i, &size, isHS]()
@@ -436,15 +453,12 @@ bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGP
                         return false;
                     }
 
-                    // grab the group name
-                    uint64_t old_i = i;
-                    while (i < size && !isWS(mem[i]))
+                    std::string newName;
+                    if (!acceptString(&newName))
                     {
-                        i++;
+                        // expected group name
+                        return false;
                     }
-                    uint64_t namelen = i - old_i;
-
-                    std::string newName(&mem[old_i], &mem[i]);
                    
                     if (drawbuf.empty() && idxbuf.empty())
                     {
@@ -455,7 +469,7 @@ bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGP
                         emitGroup();
                     }
 
-                    currGroupName = newName;
+                    currGroupName = std::move(newName);
 
                     optionalHS();
                 }
@@ -472,6 +486,54 @@ bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGP
                     while (i < size && !isNL(mem[i]))
                     {
                         i++;
+                    }
+                }
+                else if (mem[i] == 'm')
+                {
+                    if (size - i >= 6 && memcmp(&mem[i], "mtllib", 6) == 0)
+                    {
+                        i += 6;
+                        acceptHS();
+
+                        std::string mtllibname;
+                        if (!acceptString(&mtllibname))
+                        {
+                            // expected material library name
+                            return false;
+                        }
+                        else
+                        {
+                            static_assert(false, "TODO: Read and parse material file");
+                        }
+
+                        optionalHS();
+                    }
+                    else
+                    {
+                        // unknown start of line
+                        return false;
+                    }
+                }
+                else if (mem[i] == 'u')
+                {
+                    if (size - i >= 6 && memcmp(&mem[i], "usemtl", 6) == 0)
+                    {
+                        i += 6;
+                        acceptHS();
+
+                        std::string mtlname;
+                        if (!acceptString(&mtlname))
+                        {
+                            // expected material name
+                            return false;
+                        }
+                        else
+                        {
+                            static_assert(false, "TODO: Check for existence of material");
+                            static_assert(false, "TODO: Call emitMaterial() or something?");
+                        }
+
+                        optionalHS();
                     }
                 }
                 else
@@ -492,39 +554,65 @@ bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGP
         }
     }
 
-    CPUMeshObject tmpCPUMeshObject;
-    if (!pCPUObject)
+    if (!pMesh)
     {
-        pCPUObject = &tmpCPUMeshObject;
+        return true;
     }
 
-    pCPUObject->VertexBuffers[MeshObjectVertexBindingIndex::Position] = std::move(posbuf);
-    pCPUObject->VertexBuffers[MeshObjectVertexBindingIndex::TexCoord] = std::move(tcbuf);
-    pCPUObject->VertexBuffers[MeshObjectVertexBindingIndex::Normal] = std::move(nbuf);
-    pCPUObject->IndexBuffer = std::move(idxbuf);
-    pCPUObject->GroupNames = std::move(groupNames);
-    pCPUObject->IndirectDrawBuffer = std::move(drawbuf);
+    pMesh->CPUVertexBuffers[MeshObjectVertexBindingIndex::Position] = std::move(posbuf);
+    pMesh->CPUVertexBuffers[MeshObjectVertexBindingIndex::TexCoord] = std::move(tcbuf);
+    pMesh->CPUVertexBuffers[MeshObjectVertexBindingIndex::Normal] = std::move(nbuf);
+    pMesh->CPUIndexBuffer = std::move(idxbuf);
+    pMesh->GroupNames = std::move(groupNames);
+    pMesh->CPUIndirectDrawBuffer = std::move(drawbuf);
 
-    if (pGPUObject)
+    glDeleteBuffers(MeshObjectVertexBindingIndex::Count, pMesh->VertexBuffers);
+    glGenBuffers(MeshObjectVertexBindingIndex::Count, pMesh->VertexBuffers);
+    for (int bindingidx = 0; bindingidx < MeshObjectVertexBindingIndex::Count; bindingidx++)
     {
-        glGenBuffers(MeshObjectVertexBindingIndex::Count, pGPUObject->VertexBuffers);
-        for (int bindingidx = 0; bindingidx < MeshObjectVertexBindingIndex::Count; bindingidx++)
-        {
-            glBindBuffer(GL_ARRAY_BUFFER, pGPUObject->VertexBuffers[bindingidx]);
-            glBufferData(GL_ARRAY_BUFFER,
-                pCPUObject->VertexBuffers[bindingidx].size() * sizeof(float),
-                pCPUObject->VertexBuffers[bindingidx].data(),
-                GL_STATIC_DRAW);
-        }
-
-        glGenBuffers(1, &pGPUObject->IndexBuffer);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pGPUObject->IndexBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, pCPUObject->IndexBuffer.size() * sizeof(GLuint), pCPUObject->IndexBuffer.data(), GL_STATIC_DRAW);
-
-        glGenBuffers(1, &pGPUObject->IndirectDrawBuffer);
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, pGPUObject->IndirectDrawBuffer);
-        glBufferData(GL_DRAW_INDIRECT_BUFFER, pCPUObject->IndirectDrawBuffer.size() * sizeof(GLDrawElementsIndirectCommand), pCPUObject->IndirectDrawBuffer.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, pMesh->VertexBuffers[bindingidx]);
+        glBufferStorage(GL_ARRAY_BUFFER,
+            pMesh->CPUVertexBuffers[bindingidx].size() * sizeof(float),
+            pMesh->CPUVertexBuffers[bindingidx].data(),
+            0);
     }
+
+    glDeleteBuffers(1, &pMesh->IndexBuffer);
+    glGenBuffers(1, &pMesh->IndexBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pMesh->IndexBuffer);
+    glBufferStorage(GL_ELEMENT_ARRAY_BUFFER, pMesh->CPUIndexBuffer.size() * sizeof(GLuint), pMesh->CPUIndexBuffer.data(), 0);
+
+    glDeleteBuffers(1, &pMesh->IndirectDrawBuffer);
+    glGenBuffers(1, &pMesh->IndirectDrawBuffer);
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, pMesh->IndirectDrawBuffer);
+    glBufferStorage(GL_DRAW_INDIRECT_BUFFER, pMesh->CPUIndirectDrawBuffer.size() * sizeof(GLDrawElementsIndirectCommand), pMesh->CPUIndirectDrawBuffer.data(), 0);
+
+    glDeleteVertexArrays(1, &pMesh->VertexArray);
+    glGenVertexArrays(1, &pMesh->VertexArray);
+    glBindVertexArray(pMesh->VertexArray);
+    
+    // set up buffer bindings
+    glBindVertexBuffer(MeshObjectVertexBindingIndex::Position, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::Position], 0, sizeof(float) * 3);
+    glBindVertexBuffer(MeshObjectVertexBindingIndex::TexCoord, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::TexCoord], 0, sizeof(float) * 2);
+    glBindVertexBuffer(MeshObjectVertexBindingIndex::Normal, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::Normal], 0, sizeof(float) * 3);
+    
+    // set up attributes
+    glVertexAttribFormat(MeshObjectVertexAttribIndex::Position, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribFormat(MeshObjectVertexAttribIndex::TexCoord, 2, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribFormat(MeshObjectVertexAttribIndex::Normal, 3, GL_FLOAT, GL_FALSE, 0);
+
+    // hook up the attributes to the buffer bindings
+    glVertexAttribBinding(MeshObjectVertexAttribIndex::Position, MeshObjectVertexBindingIndex::Position);
+    glVertexAttribBinding(MeshObjectVertexAttribIndex::TexCoord, MeshObjectVertexBindingIndex::TexCoord);
+    glVertexAttribBinding(MeshObjectVertexAttribIndex::Normal,   MeshObjectVertexBindingIndex::Normal);
+
+    // enable the attributes
+    glEnableVertexAttribArray(MeshObjectVertexAttribIndex::Position);
+    glEnableVertexAttribArray(MeshObjectVertexAttribIndex::TexCoord);
+    glEnableVertexAttribArray(MeshObjectVertexAttribIndex::Normal);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pMesh->IndexBuffer);
+    glBindVertexArray(0);
 
     return true;
 }

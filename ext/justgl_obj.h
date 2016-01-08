@@ -17,25 +17,30 @@ struct MeshObjectVertexBindingIndex
     };
 };
 
-// CPU-side data so you can do extra manipulations
-class CPUMeshObject
+struct MeshObjectVertexAttribIndex
 {
-public:
-    std::vector<float> VertexBuffers[MeshObjectVertexBindingIndex::Count];
-    std::vector<GLuint> IndexBuffer;
-    
-    std::vector<std::string> GroupNames;
-    std::vector<GLDrawElementsIndirectCommand> IndirectDrawBuffer;
+    enum Enum
+    {
+        Position,
+        TexCoord,
+        Normal,
+        Count
+    };
 };
 
-class GPUMeshObject;
-void swap(GPUMeshObject& a, GPUMeshObject& b);
-
-// All wrapped up and good to go for rendering
-class GPUMeshObject
+class MaterialPalette
 {
 public:
-    GPUMeshObject()
+};
+
+class MeshObject;
+void swap(MeshObject& a, MeshObject& b);
+
+// All wrapped up and good to go for rendering
+class MeshObject
+{
+public:
+    MeshObject()
         : VertexArray(0)
         , VertexBuffers{}
         , IndexBuffer(0)
@@ -43,7 +48,7 @@ public:
     {
     }
 
-    ~GPUMeshObject()
+    ~MeshObject()
     {
         glDeleteVertexArrays(1, &VertexArray);
         glDeleteBuffers(MeshObjectVertexBindingIndex::Count, VertexBuffers);
@@ -51,16 +56,16 @@ public:
         glDeleteBuffers(1, &IndirectDrawBuffer);
     }
 
-    GPUMeshObject(const GPUMeshObject&) = delete;
-    GPUMeshObject& operator=(const GPUMeshObject&) = delete;
+    MeshObject(const MeshObject&) = delete;
+    MeshObject& operator=(const MeshObject&) = delete;
 
-    GPUMeshObject(GPUMeshObject&& other)
-        : GPUMeshObject()
+    MeshObject(MeshObject&& other)
+        : MeshObject()
     {
         swap(*this, other);
     }
 
-    GPUMeshObject& operator=(GPUMeshObject&& other)
+    MeshObject& operator=(MeshObject&& other)
     {
         swap(*this, other);
     }
@@ -69,19 +74,29 @@ public:
     GLuint VertexBuffers[MeshObjectVertexBindingIndex::Count];
     GLuint IndexBuffer;
     GLuint IndirectDrawBuffer;
+
+    // CPU data so you wanna do some other manipulations
+    std::vector<float> CPUVertexBuffers[MeshObjectVertexBindingIndex::Count];
+    std::vector<GLuint> CPUIndexBuffer;
+    std::vector<std::string> GroupNames;
+    std::vector<GLDrawElementsIndirectCommand> CPUIndirectDrawBuffer;
 };
 
-inline void swap(GPUMeshObject& a, GPUMeshObject& b)
+inline void swap(MeshObject& a, MeshObject& b)
 {
     std::swap(a.VertexArray, b.VertexArray);
     for (int i = 0; i < sizeof(a.VertexBuffers) / sizeof(*a.VertexBuffers); i++)
     {
         std::swap(a.VertexBuffers[i], b.VertexBuffers[i]);
+        std::swap(a.CPUVertexBuffers[i], b.CPUVertexBuffers[i]);
     }
     std::swap(a.IndexBuffer, b.IndexBuffer);
+    std::swap(a.CPUIndexBuffer, b.CPUIndexBuffer);
     std::swap(a.IndirectDrawBuffer, b.IndirectDrawBuffer);
+    std::swap(a.CPUIndirectDrawBuffer, b.CPUIndirectDrawBuffer);
+    std::swap(a.GroupNames, b.GroupNames);
 }
 
-bool LoadObj(const char* filename, CPUMeshObject* pCPUObject, GPUMeshObject* pGPUObject);
+bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPalette);
 
 #endif // JUSTGL_OBJ_H
