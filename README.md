@@ -7,12 +7,6 @@ Just GL it!
 3. Create `mygl.cpp` in your project (as below.)
 4. Start filling in `mygl.cpp`.
 
-## Extensions
-
-There are utilities in the `ext` folder you can also add to your project.
-
-They are not necessary, and designed for my own rapid prototyping purposes.
-
 ## `justgl.cpp`
     #define JUSTGL_IMPLEMENTATION
     #include "justgl.h"
@@ -39,3 +33,9 @@ They are not necessary, and designed for my own rapid prototyping purposes.
     {
         // TODO: render scene
     }
+
+## Extensions
+
+There are utilities in the `ext` folder you can also add to your project.
+
+They are not necessary, and designed for my own rapid prototyping purposes.
