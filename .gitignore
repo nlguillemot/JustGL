@@ -1,5 +1,9 @@
+# visual studio nonsense
 *.sdf
 *.opendb
+*.suo
+x64/Debug
+x64/Release
 
 # stuff for my testing purposes
 JustGL.sln

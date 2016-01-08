@@ -45,7 +45,6 @@ void PaintGL();
 
 // Utility functions
 void* GetProcGL(const char* procname);
-uint64_t GetFileTimestamp(const char* filename);
 
 // A tweaked version of glcorearb.h is pasted inline between __glcorearb_h_.
 // The license associated to this chunk of code is also included inline.
@@ -99,9 +98,9 @@ uint64_t GetFileTimestamp(const char* filename);
 #endif
 #ifndef GLAPI
 #ifdef JUSTGL_IMPLEMENTATION
-#define GLAPI extern
-#else
 #define GLAPI
+#else
+#define GLAPI extern
 #endif
 #endif
 
@@ -2910,6 +2909,24 @@ GLAPI void (GLCALLP glTexPageCommitmentARB)(GLenum target, GLint level, GLint xo
 
 #endif // __glcorearb_h_
 
+// Indirect draw stuff
+typedef struct GLDrawArraysIndirectCommand
+{
+    GLuint count;
+    GLuint primCount;
+    GLuint first;
+    GLuint baseInstance;
+} GLDrawArraysIndirectCommand;
+
+typedef struct GLDrawElementsIndirectCommand
+{
+    GLuint count;
+    GLuint primCount;
+    GLuint firstIndex;
+    GLint  baseVertex;
+    GLuint baseInstance;
+} GLDrawElementsIndirectCommand;
+
 #endif // JUSTGL_H_INCLUDED
 
 #ifdef JUSTGL_IMPLEMENTATION
@@ -2989,40 +3006,6 @@ void AssertWin32(BOOL b)
     }
 
     AssertWin32(LocalFree(buffPtr) == NULL);
-}
-
-uint64_t GetFileTimestamp(const char* filename)
-{
-    wchar_t* wfilename = (wchar_t*) malloc(sizeof(wchar_t) * (strlen(filename) + 1));
-    int i;
-    for (i = 0; filename[i] != '\0'; i++)
-    {
-        wfilename[i] = filename[i];
-    }
-    wfilename[i] = '\0';
-
-    HANDLE hFile = CreateFileW(wfilename, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-    free(wfilename);
-
-    if (hFile == INVALID_HANDLE_VALUE)
-    {
-        return 0;
-    }
-
-    FILETIME lastWriteTime;
-    BOOL getFileTimeOK = GetFileTime(hFile, NULL, NULL, &lastWriteTime);
-
-    AssertWin32(CloseHandle(hFile));
-
-    if (getFileTimeOK)
-    {
-        uint64_t hi64 = uint64_t(lastWriteTime.dwHighDateTime) << 32;
-        return hi64 | lastWriteTime.dwLowDateTime;
-    }
-    else
-    {
-        return 0;
-    }
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
