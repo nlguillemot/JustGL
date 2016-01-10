@@ -5,8 +5,13 @@
 #include <cassert>
 #include <cerrno>
 
-bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPalette)
+bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPaletteToAddTo)
 {
+    if (!filename)
+    {
+        return false;
+    }
+
     MappedFile mapping = MapFileForRead(filename);
     if (!mapping.Data)
     {
@@ -503,7 +508,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         }
                         else
                         {
-                            static_assert(false, "TODO: Read and parse material file");
+                            // static_assert(false, "TODO: Read and parse material file");
                         }
 
                         optionalHS();
@@ -529,8 +534,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         }
                         else
                         {
-                            static_assert(false, "TODO: Check for existence of material");
-                            static_assert(false, "TODO: Call emitMaterial() or something?");
+                            // static_assert(false, "TODO: Check for existence of material");
+                            // static_assert(false, "TODO: Call emitMaterial() or something?");
                         }
 
                         optionalHS();
@@ -556,6 +561,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
     if (!pMesh)
     {
+        // nothing to do
         return true;
     }
 
@@ -566,8 +572,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     pMesh->GroupNames = std::move(groupNames);
     pMesh->CPUIndirectDrawBuffer = std::move(drawbuf);
 
-    glDeleteBuffers(MeshObjectVertexBindingIndex::Count, pMesh->VertexBuffers);
-    glGenBuffers(MeshObjectVertexBindingIndex::Count, pMesh->VertexBuffers);
+    glDeleteBuffers(MeshObjectVertexBindingIndex::Count, &pMesh->VertexBuffers[0]);
+    glGenBuffers(MeshObjectVertexBindingIndex::Count, &pMesh->VertexBuffers[0]);
     for (int bindingidx = 0; bindingidx < MeshObjectVertexBindingIndex::Count; bindingidx++)
     {
         glBindBuffer(GL_ARRAY_BUFFER, pMesh->VertexBuffers[bindingidx]);

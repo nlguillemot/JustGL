@@ -1,25 +1,32 @@
 #include "justgl_shader.h"
 #include "justgl_fs.h"
 
+#include <vector>
+#include <cstdio>
+
 std::set<Shader*> Shader::AllShaders;
 std::set<ShaderProgram*> ShaderProgram::AllPrograms;
 
-bool UpdateShaders()
+bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>* pUpdatedPrograms)
 {
-    std::set<Shader*> updatedShaders;
+    std::set<Shader*> tempUpdatedShaders;
+    std::set<ShaderProgram*> tempUpdatedPrograms;
+
+    if (!pUpdatedShaders) {
+        pUpdatedShaders = &tempUpdatedShaders;
+    }
+    if (!pUpdatedPrograms) {
+        pUpdatedPrograms = &tempUpdatedPrograms;
+    }
+
     bool anyBroken = false;
 
     for (Shader* shader : Shader::AllShaders)
     {
-        if (!shader->Filename)
-        {
-            continue;
-        }
-
-        uint64_t timestamp = GetFileTimestamp(shader->Filename);
+        uint64_t timestamp = GetFileTimestamp(shader->Filename.c_str());
         if (timestamp == 0)
         {
-            fprintf(stderr, "Couldn't find file: %s\n", shader->Filename);
+            fprintf(stderr, "Couldn't find file: %s\n", shader->Filename.c_str());
             anyBroken = true;
         }
         else if (timestamp > shader->Timestamp)
@@ -28,20 +35,18 @@ bool UpdateShaders()
             shader->Timestamp = timestamp;
             shader->Handle = 0;
 
-            std::ifstream ifs(shader->Filename);
-            if (!ifs)
+            MappedFile shaderFile = MapFileForRead(shader->Filename.c_str());
+            if (!shaderFile.Data)
             {
                 anyBroken = true;
                 continue;
             }
 
-            std::stringstream ss;
-            ss << ifs.rdbuf();
-            std::string s = ss.str();
-            const char* cs = s.c_str();
+            const char* data = shaderFile.Data;
+            GLint size = (GLint)shaderFile.Size;
 
             shader->Handle = glCreateShader(shader->Type);
-            glShaderSource(shader->Handle, 1, &cs, NULL);
+            glShaderSource(shader->Handle, 1, &data, &size);
             glCompileShader(shader->Handle);
 
             GLint status;
@@ -52,23 +57,25 @@ bool UpdateShaders()
                 glGetShaderiv(shader->Handle, GL_INFO_LOG_LENGTH, &logLength);
                 std::vector<char> log(logLength);
                 glGetShaderInfoLog(shader->Handle, logLength, NULL, log.data());
-                fprintf(stderr, "Error compiling %s: %s\n", shader->Filename, log.data());
+                fprintf(stderr, "Error compiling %s: %s\n", shader->Filename.c_str(), log.data());
                 anyBroken = true;
             }
             else
             {
-                updatedShaders.insert(shader);
+                pUpdatedShaders->insert(shader);
             }
         }
     }
 
     for (ShaderProgram* program : ShaderProgram::AllPrograms)
     {
-        if (updatedShaders.find(program->VS) != updatedShaders.end() ||
-            updatedShaders.find(program->FS) != updatedShaders.end() || 
-            updatedShaders.find(program->GS) != updatedShaders.end() ||
-            updatedShaders.find(program->TCS) != updatedShaders.end() ||
-            updatedShaders.find(program->TES) != updatedShaders.end())
+        std::set<Shader*>::iterator end = pUpdatedShaders->end();
+        if (pUpdatedShaders->find(program->VS)  != end ||
+            pUpdatedShaders->find(program->FS)  != end || 
+            pUpdatedShaders->find(program->GS)  != end ||
+            pUpdatedShaders->find(program->TCS) != end ||
+            pUpdatedShaders->find(program->TES) != end ||
+            pUpdatedShaders->find(program->CS)  != end)
         {
             glDeleteProgram(program->Handle);
             program->Handle = 0;
@@ -80,10 +87,11 @@ bool UpdateShaders()
                 program->FS,
                 program->GS,
                 program->TCS,
-                program->TES
+                program->TES,
+                program->CS
             };
             const char* shaderStageNames[] = {
-                "VS", "FS", "GS", "TCS", "TES"
+                "VS", "FS", "GS", "TCS", "TES", "CS"
             };
 
             for (Shader* stage : shaderStages)
@@ -92,6 +100,11 @@ bool UpdateShaders()
                 {
                     glAttachShader(program->Handle, stage->Handle);
                 }
+            }
+
+            for (const std::pair<GLenum, GLint>& preLinkParam : program->PreLinkParametersi)
+            {
+                glProgramParameteri(program->Handle, preLinkParam.first, preLinkParam.second);
             }
             
             glLinkProgram(program->Handle);
@@ -104,16 +117,25 @@ bool UpdateShaders()
                 glGetProgramiv(program->Handle, GL_INFO_LOG_LENGTH, &logLength);
                 std::vector<char> log(logLength);
                 glGetProgramInfoLog(program->Handle, logLength, NULL, log.data());
-                fprintf(stderr, "Error linking program (");
+                fprintf(stderr, "Error linking shaders { ");
                 for (Shader* stage : shaderStages)
                 {
-                    fprintf(stderr, "%s%s: %s", 
+                    if (!stage)
+                    {
+                        continue;
+                    }
+
+                    fprintf(stderr, "%s%s: \"%s\"", 
                         stage == shaderStages[0] ? "" : ", ",
                         shaderStageNames[&stage - shaderStages], 
-                        stage->Filename ? stage->Filename : "(no filename)");
+                        stage->Filename.c_str());
                 }
-                fprintf(stderr, "): %s\n", log.data());
+                fprintf(stderr, "}: %s\n", log.data());
                 anyBroken = true;
+            }
+            else
+            {
+                pUpdatedPrograms->insert(program);
             }
         }
     }

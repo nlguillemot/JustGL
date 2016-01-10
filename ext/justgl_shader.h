@@ -3,11 +3,12 @@
 
 #include "justgl.h"
 
-#include <cstdio>
 #include <set>
-#include <vector>
-#include <fstream>
-#include <sstream>
+#include <map>
+#include <string>
+#include <utility>
+#include <cstring>
+#include <cassert>
 
 class Shader;
 void swap(Shader& a, Shader& b);
@@ -18,19 +19,52 @@ public:
     static std::set<Shader*> AllShaders;
 
     Shader()
-        : Filename(nullptr)
-        , Type(0)
+        : Type(0)
         , Timestamp(0)
         , Handle(0)
     {
         AllShaders.insert(this);
     }
 
-    Shader(const char* filename, GLenum type)
+    Shader(std::string filename, GLenum type)
         : Shader()
     {
-        Filename = filename;
+        Filename = std::move(filename);
         Type = type;
+    }
+
+    // Guesses shader type from the extension
+    explicit Shader(std::string filename)
+        : Shader()
+    {
+        Filename = std::move(filename);
+        size_t extLoc = Filename.find_last_of('.');
+        if (extLoc != std::string::npos)
+        {
+            struct ShaderExt {
+                const char* Name;
+                GLenum Type;
+            };
+            ShaderExt exts[] = {
+                { "vert", GL_VERTEX_SHADER },
+                { "frag", GL_FRAGMENT_SHADER },
+                { "geom", GL_GEOMETRY_SHADER },
+                { "tesc", GL_TESS_CONTROL_SHADER },
+                { "tese", GL_TESS_EVALUATION_SHADER },
+                { "comp", GL_COMPUTE_SHADER }
+            };
+
+            for (ShaderExt& ext : exts)
+            {
+                if (strcmp(Filename.c_str() + extLoc + 1, ext.Name) == 0)
+                {
+                    Type = ext.Type;
+                    break;
+                }
+            }
+
+            assert(Type != 0);
+        }
     }
 
     ~Shader()
@@ -53,7 +87,7 @@ public:
         swap(*this, other);
     }
 
-    const char* Filename;
+    std::string Filename;
     GLenum Type;
     uint64_t Timestamp;
     GLuint Handle;
@@ -86,14 +120,28 @@ public:
         AllPrograms.insert(this);
     }
 
-    explicit ShaderProgram(Shader* vs, Shader* fs = nullptr, Shader* gs = nullptr, Shader* tcs = nullptr, Shader* tes = nullptr)
+    explicit ShaderProgram(Shader* vs_or_cs, Shader* fs = nullptr, Shader* gs = nullptr, Shader* tcs = nullptr, Shader* tes = nullptr)
         : ShaderProgram()
     {
-        VS = vs;
-        FS = fs;
-        GS = gs;
-        TCS = tcs;
-        TES = tes;
+        if (vs_or_cs)
+        {
+            if (vs_or_cs->Type == GL_VERTEX_SHADER)
+            {
+                VS = vs_or_cs;
+                FS = fs;
+                GS = gs;
+                TCS = tcs;
+                TES = tes;
+            }
+            else if (vs_or_cs->Type == GL_COMPUTE_SHADER)
+            {
+                CS = vs_or_cs;
+                assert(fs == nullptr);
+                assert(gs == nullptr);
+                assert(tcs == nullptr);
+                assert(tes == nullptr);
+            }
+        }
     }
 
     ~ShaderProgram()
@@ -121,7 +169,11 @@ public:
     Shader* GS;
     Shader* TCS;
     Shader* TES;
+    Shader* CS;
     GLuint Handle;
+
+    // Used with glProgramParameteri before linking
+    std::map<GLenum, GLint> PreLinkParametersi;
 };
 
 inline void swap(ShaderProgram& a, ShaderProgram& b)
@@ -131,9 +183,14 @@ inline void swap(ShaderProgram& a, ShaderProgram& b)
     std::swap(a.GS, b.GS);
     std::swap(a.TCS, b.TCS);
     std::swap(a.TES, b.TES);
+    std::swap(a.CS, b.CS);
     std::swap(a.Handle, b.Handle);
+    std::swap(a.PreLinkParametersi, b.PreLinkParametersi);
 }
 
-bool UpdateShaders();
+// Returns false if any shaders failed to compile/link.
+// Intended use: void PaintGL() { if (!UpdateShaders()){ return; } }
+// No matter the return value, it optionally reports shaders and programs that were updated.
+bool UpdateShaders(std::set<Shader*>* pUpdatedShaders = nullptr, std::set<ShaderProgram*>* pUpdatedPrograms = nullptr);
 
 #endif // JUSTGL_SHADER_H

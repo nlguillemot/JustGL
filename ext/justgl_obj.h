@@ -4,6 +4,7 @@
 #include "justgl.h"
 
 #include <vector>
+#include <array>
 #include <string>
 
 struct MeshObjectVertexBindingIndex
@@ -51,7 +52,7 @@ public:
     ~MeshObject()
     {
         glDeleteVertexArrays(1, &VertexArray);
-        glDeleteBuffers(MeshObjectVertexBindingIndex::Count, VertexBuffers);
+        glDeleteBuffers(MeshObjectVertexBindingIndex::Count, VertexBuffers.data());
         glDeleteBuffers(1, &IndexBuffer);
         glDeleteBuffers(1, &IndirectDrawBuffer);
     }
@@ -71,32 +72,33 @@ public:
     }
 
     GLuint VertexArray;
-    GLuint VertexBuffers[MeshObjectVertexBindingIndex::Count];
+    std::array<GLuint, MeshObjectVertexBindingIndex::Count> VertexBuffers;
     GLuint IndexBuffer;
     GLuint IndirectDrawBuffer;
 
     // CPU data so you wanna do some other manipulations
-    std::vector<float> CPUVertexBuffers[MeshObjectVertexBindingIndex::Count];
+    std::array<std::vector<float>, MeshObjectVertexBindingIndex::Count> CPUVertexBuffers;
     std::vector<GLuint> CPUIndexBuffer;
-    std::vector<std::string> GroupNames;
     std::vector<GLDrawElementsIndirectCommand> CPUIndirectDrawBuffer;
+
+    // The group name of each draw call
+    std::vector<std::string> GroupNames;
 };
 
 inline void swap(MeshObject& a, MeshObject& b)
 {
     std::swap(a.VertexArray, b.VertexArray);
-    for (int i = 0; i < sizeof(a.VertexBuffers) / sizeof(*a.VertexBuffers); i++)
-    {
-        std::swap(a.VertexBuffers[i], b.VertexBuffers[i]);
-        std::swap(a.CPUVertexBuffers[i], b.CPUVertexBuffers[i]);
-    }
+    std::swap(a.VertexBuffers, b.VertexBuffers);
     std::swap(a.IndexBuffer, b.IndexBuffer);
-    std::swap(a.CPUIndexBuffer, b.CPUIndexBuffer);
     std::swap(a.IndirectDrawBuffer, b.IndirectDrawBuffer);
+
+    std::swap(a.CPUVertexBuffers, b.CPUVertexBuffers);
+    std::swap(a.CPUIndexBuffer, b.CPUIndexBuffer);
     std::swap(a.CPUIndirectDrawBuffer, b.CPUIndirectDrawBuffer);
+    
     std::swap(a.GroupNames, b.GroupNames);
 }
 
-bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPalette);
+bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPaletteToAddTo);
 
 #endif // JUSTGL_OBJ_H
