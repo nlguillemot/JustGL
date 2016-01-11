@@ -26,7 +26,6 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
         uint64_t timestamp = GetFileTimestamp(shader->Filename.c_str());
         if (timestamp == 0)
         {
-            fprintf(stderr, "Couldn't find file: %s\n", shader->Filename.c_str());
             anyBroken = true;
         }
         else if (timestamp > shader->Timestamp)
@@ -62,6 +61,7 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
             }
             else
             {
+                printf("Compiled %s successfully.\n", shader->Filename.c_str());
                 pUpdatedShaders->insert(shader);
             }
         }
@@ -109,6 +109,31 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
             
             glLinkProgram(program->Handle);
 
+            auto printShaders = [&shaderStages, &shaderStageNames](FILE* f)
+            {
+                fprintf(f, "{ ");
+                bool anyLinked = false;
+                for (Shader*& stage : shaderStages)
+                {
+                    if (!stage)
+                    {
+                        continue;
+                    }
+
+                    anyLinked = true;
+
+                    fprintf(f, "%s%s: \"%s\"",
+                        stage == shaderStages[0] ? "" : ", ",
+                        shaderStageNames[&stage - shaderStages],
+                        stage->Filename.c_str());
+                }
+                if (anyLinked)
+                {
+                    fprintf(f, " ");
+                }
+                fprintf(f, "}");
+            };
+
             GLint status;
             glGetProgramiv(program->Handle, GL_LINK_STATUS, &status);
             if (!status)
@@ -117,24 +142,18 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
                 glGetProgramiv(program->Handle, GL_INFO_LOG_LENGTH, &logLength);
                 std::vector<char> log(logLength);
                 glGetProgramInfoLog(program->Handle, logLength, NULL, log.data());
-                fprintf(stderr, "Error linking shaders { ");
-                for (Shader* stage : shaderStages)
-                {
-                    if (!stage)
-                    {
-                        continue;
-                    }
 
-                    fprintf(stderr, "%s%s: \"%s\"", 
-                        stage == shaderStages[0] ? "" : ", ",
-                        shaderStageNames[&stage - shaderStages], 
-                        stage->Filename.c_str());
-                }
-                fprintf(stderr, "}: %s\n", log.data());
+                fprintf(stderr, "Error linking shaders ");
+                printShaders(stderr);
+                fprintf(stderr, "\n%s\n", log.data());
                 anyBroken = true;
             }
             else
             {
+                fprintf(stdout, "Linked program successfully: ");
+                printShaders(stdout);
+                fprintf(stdout, "\n");
+
                 pUpdatedPrograms->insert(program);
             }
         }

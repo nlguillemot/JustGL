@@ -33,6 +33,16 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         return c == '\n' || c == '\r';
     };
 
+    auto isDigit = [](char c)
+    {
+        return c >= '0' && c <= '9';
+    };
+
+    auto isAlpha = [](char c)
+    {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    };
+
     std::vector<float> vs;
     std::vector<float> vts;
     std::vector<float> vns;
@@ -57,7 +67,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         (int vi, int vti, int vni)
     {
         int hashed =
-            (vi & (kCacheSize - 1)) ^
+            (vi  & (kCacheSize - 1)) ^
             (vti & (kCacheSize - 1)) ^
             (vni & (kCacheSize - 1));
 
@@ -69,15 +79,17 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
         else
         {
-            posbuf.push_back(vs[(vi - 1) * 3 + 0]);
-            posbuf.push_back(vs[(vi - 1) * 3 + 1]);
-            posbuf.push_back(vs[(vi - 1) * 3 + 2]);
+            if (vi != 0)
+            {
+                posbuf.push_back(vs[(vi - 1) * 3 + 0]);
+                posbuf.push_back(vs[(vi - 1) * 3 + 1]);
+                posbuf.push_back(vs[(vi - 1) * 3 + 2]);
+            }
 
             if (vti != 0)
             {
-                tcbuf.push_back(vts[(vti - 1) * 3 + 0]);
-                tcbuf.push_back(vts[(vti - 1) * 3 + 1]);
-                tcbuf.push_back(vts[(vti - 1) * 3 + 2]);
+                tcbuf.push_back(vts[(vti - 1) * 2 + 0]);
+                tcbuf.push_back(vts[(vti - 1) * 2 + 1]);
             }
 
             if (vni != 0)
@@ -87,7 +99,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 nbuf.push_back(vns[(vni - 1) * 3 + 2]);
             }
 
-            idxbuf.push_back((GLuint)posbuf.size() - 1);
+            idxbuf.push_back((GLuint)posbuf.size() / 3 - 1);
             
             cache[hashed].v = vi;
             cache[hashed].vt = vti;
@@ -106,7 +118,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         GLDrawElementsIndirectCommand cmd;
         if (drawbuf.empty())
         {
-            cmd.count = 0;
+            cmd.count = (GLuint)idxbuf.size();
             cmd.primCount = 1;
             cmd.firstIndex = 0;
             cmd.baseVertex = 0;
@@ -130,10 +142,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
     size_t i;
 
-    auto parseFloat = [mem, &i, &size, isWS](float* f)
+    auto parseFloat = [mem, &i, &size, isDigit, isAlpha](float* f)
     {
         uint64_t end = i;
-        while (i < size && !isWS(mem[i]))
+        while (end < size && (isDigit(mem[end]) || isAlpha(mem[end]) || mem[end] == '.' || mem[end] == '-' || mem[end] == '+'))
         {
             end++;
         }
@@ -142,7 +154,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         char buf[256];
         if (len + 1 >= sizeof(buf))
         {
-            fprintf(stderr, "Calm down with your floats");
+            fprintf(stderr, "Calm down with your floats\n");
             return false;
         }
 
@@ -167,10 +179,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
     };
 
-    auto parseInt = [mem, &i, &size, isWS](int* ii)
+    auto parseInt = [mem, &i, &size, isWS, isDigit](int* ii)
     {
         uint64_t end = i;
-        while (i < size && !isWS(mem[i]))
+        while (end < size && (isDigit(mem[end]) || mem[end] == '-' || mem[end] == '+'))
         {
             end++;
         }
@@ -179,7 +191,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         char buf[256];
         if (len + 1 >= sizeof(buf))
         {
-            fprintf(stderr, "Calm down with your floats");
+            fprintf(stderr, "Calm down with your ints\n");
             return false;
         }
 
@@ -236,10 +248,15 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         acceptHS();
     };
 
-    for (i = 0; i < size; i++)
+    for (i = 0; i < size; )
     {
         while (i < size && isWS(mem[i])) {
             i++;
+        }
+
+        if (i >= size)
+        {
+            break;
         }
 
         if (mem[i] == '#')
@@ -404,15 +421,15 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
                         if (vi < 0)
                         {
-                            vi = (int)vs.size() + vi;
+                            vi = (int)vs.size() / 3 + vi + 1;
                         }
                         if (vti < 0)
                         {
-                            vti = (int)vts.size() + vti;
+                            vti = (int)vts.size() / 2 + vti + 1;
                         }
                         if (vni < 0)
                         {
-                            vni = (int)vns.size() + vni;
+                            vni = (int)vns.size() / 3 + vni + 1;
                         }
 
                         if (j == 0)
@@ -427,7 +444,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             emitVertex(last_vi, last_vti, last_vni);
                             emitVertex(vi, vti, vni);
                         }
-                        
+
                         last_vi = vi;
                         last_vti = vti;
                         last_vni = vni;
@@ -448,103 +465,95 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         }
                     }
                 }
-                else if (mem[i] == 'g')
+            }
+            else if (mem[i] == 'g')
+            {
+                i++;
+
+                if (!acceptHS())
+                {
+                    // unknown start of line
+                    return false;
+                }
+
+                std::string newName;
+                if (!acceptString(&newName))
+                {
+                    // expected group name
+                    return false;
+                }
+                   
+                // emit if this is not the first (and empty) group
+                if (!(drawbuf.empty() && idxbuf.empty()))
+                {
+                    emitGroup();
+                }
+
+                currGroupName = std::move(newName);
+
+                optionalHS();
+            }
+            else if (mem[i] == 's')
+            {
+                i++;
+                if (!acceptHS())
+                {
+                    // unknown start of line
+                    return false;
+                }
+
+                // smoothing groups are ignored
+                while (i < size && !isNL(mem[i]))
                 {
                     i++;
+                }
+            }
+            else if (mem[i] == 'm')
+            {
+                if (size - i >= 6 && memcmp(&mem[i], "mtllib", 6) == 0)
+                {
+                    i += 6;
+                    acceptHS();
 
-                    if (!acceptHS())
+                    std::string mtllibname;
+                    if (!acceptString(&mtllibname))
                     {
-                        // unknown start of line
+                        // expected material library name
                         return false;
-                    }
-
-                    std::string newName;
-                    if (!acceptString(&newName))
-                    {
-                        // expected group name
-                        return false;
-                    }
-                   
-                    if (drawbuf.empty() && idxbuf.empty())
-                    {
-                        // first (and empty) group, don't emit anything
                     }
                     else
                     {
-                        emitGroup();
+                        // static_assert(false, "TODO: Read and parse material file");
                     }
-
-                    currGroupName = std::move(newName);
 
                     optionalHS();
-                }
-                else if (mem[i] == 's')
-                {
-                    i++;
-                    if (!acceptHS())
-                    {
-                        // unknown start of line
-                        return false;
-                    }
-
-                    // smoothing groups are ignored
-                    while (i < size && !isNL(mem[i]))
-                    {
-                        i++;
-                    }
-                }
-                else if (mem[i] == 'm')
-                {
-                    if (size - i >= 6 && memcmp(&mem[i], "mtllib", 6) == 0)
-                    {
-                        i += 6;
-                        acceptHS();
-
-                        std::string mtllibname;
-                        if (!acceptString(&mtllibname))
-                        {
-                            // expected material library name
-                            return false;
-                        }
-                        else
-                        {
-                            // static_assert(false, "TODO: Read and parse material file");
-                        }
-
-                        optionalHS();
-                    }
-                    else
-                    {
-                        // unknown start of line
-                        return false;
-                    }
-                }
-                else if (mem[i] == 'u')
-                {
-                    if (size - i >= 6 && memcmp(&mem[i], "usemtl", 6) == 0)
-                    {
-                        i += 6;
-                        acceptHS();
-
-                        std::string mtlname;
-                        if (!acceptString(&mtlname))
-                        {
-                            // expected material name
-                            return false;
-                        }
-                        else
-                        {
-                            // static_assert(false, "TODO: Check for existence of material");
-                            // static_assert(false, "TODO: Call emitMaterial() or something?");
-                        }
-
-                        optionalHS();
-                    }
                 }
                 else
                 {
                     // unknown start of line
                     return false;
+                }
+            }
+            else if (mem[i] == 'u')
+            {
+                if (size - i >= 6 && memcmp(&mem[i], "usemtl", 6) == 0)
+                {
+                    i += 6;
+                    acceptHS();
+
+                    std::string mtlname;
+                    if (!acceptString(&mtlname))
+                    {
+                        // expected material name
+                        return false;
+                    }
+                    else
+                    {
+                        // static_assert(false, "TODO: Check for existence of material");
+                        // static_assert(false, "TODO: Call emitMaterial() or something?");
+                    }
+
+                    optionalHS();
                 }
             }
             else
@@ -557,6 +566,12 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         while (i < size && isNL(mem[i])) {
             i++;
         }
+    }
+
+    // emit if this is not the first (and empty) group
+    if (!(drawbuf.empty() && idxbuf.empty()))
+    {
+        emitGroup();
     }
 
     if (!pMesh)
