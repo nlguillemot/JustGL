@@ -53,6 +53,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     std::vector<float> nbuf;
     std::vector<GLuint> idxbuf;
 
+    int positionCardinality = -1;
+    int texCoordCardinality = -1;
+    int normalCardinality = -1;
+
     struct VertexCacheEntry
     {
         int v, vt, vn;
@@ -63,8 +67,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     static_assert((kCacheSize & (kCacheSize - 1)) == 0, "assuming pow2");
     VertexCacheEntry cache[kCacheSize];
 
-    auto emitVertex = [&vs, &vts, &vns, &posbuf, &tcbuf, &nbuf, &idxbuf, &cache]
-        (int vi, int vti, int vni)
+    auto emitVertex = [&](int vi, int vti, int vni)
     {
         int hashed =
             (vi  & (kCacheSize - 1)) ^
@@ -81,25 +84,29 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         {
             if (vi != 0)
             {
-                posbuf.push_back(vs[(vi - 1) * 3 + 0]);
-                posbuf.push_back(vs[(vi - 1) * 3 + 1]);
-                posbuf.push_back(vs[(vi - 1) * 3 + 2]);
+                for (int vidx = 0; vidx < positionCardinality; vidx++)
+                {
+                    posbuf.push_back(vs[(vi - 1) * positionCardinality + vidx]);
+                }
             }
 
             if (vti != 0)
             {
-                tcbuf.push_back(vts[(vti - 1) * 2 + 0]);
-                tcbuf.push_back(vts[(vti - 1) * 2 + 1]);
+                for (int tcidx = 0; tcidx < texCoordCardinality; tcidx++)
+                {
+                    tcbuf.push_back(vts[(vti - 1) * texCoordCardinality + tcidx]);
+                }
             }
 
             if (vni != 0)
             {
-                nbuf.push_back(vns[(vni - 1) * 3 + 0]);
-                nbuf.push_back(vns[(vni - 1) * 3 + 1]);
-                nbuf.push_back(vns[(vni - 1) * 3 + 2]);
+                for (int vnidx = 0; vnidx < normalCardinality; vnidx++)
+                {
+                    nbuf.push_back(vns[(vni - 1) * normalCardinality + vnidx]);
+                }
             }
 
-            idxbuf.push_back((GLuint)posbuf.size() / 3 - 1);
+            idxbuf.push_back((GLuint)posbuf.size() / positionCardinality - 1);
             
             cache[hashed].v = vi;
             cache[hashed].vt = vti;
@@ -126,7 +133,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
         else
         {
-            cmd.count = (GLuint)idxbuf.size() - drawbuf.back().firstIndex + drawbuf.back().count;
+            cmd.count = (GLuint)idxbuf.size() - drawbuf.back().firstIndex;
+            assert((GLsizei)cmd.count >= 0);
             cmd.primCount = 1;
             cmd.firstIndex = (GLuint)idxbuf.size() - cmd.count;
             cmd.baseVertex = 0;
@@ -248,6 +256,65 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         acceptHS();
     };
 
+    auto parse1To4Floats = [&](float* values, int* expectedCardinality, int* cardinality)
+    {
+        int foundCardinality = 0;
+        for (int card = 0; card < 4; card++)
+        {
+            size_t old_i = i;
+            if ((card == 0 || acceptHS()) && parseFloat(&values[card]))
+            {
+                foundCardinality++;
+            }
+            else
+            {
+                i = old_i;
+                break;
+            }
+        }
+
+        if (foundCardinality == 0)
+        {
+            // expected 1-4 floats
+            return false;
+        }
+
+        if (*expectedCardinality == -1)
+        {
+            *expectedCardinality = foundCardinality;
+        }
+        else
+        {
+            if (foundCardinality != *expectedCardinality)
+            {
+                // inconsistent cardinality
+                return false;
+            }
+        }
+
+        *cardinality = foundCardinality;
+        return true;
+    };
+
+    bool parseOK = false;
+
+    struct ParseScope
+    {
+        bool& parseOK;
+        const char*& mem;
+        size_t& i;
+
+        ~ParseScope()
+        {
+            if (!parseOK)
+            {
+                DebugBreak();
+            }
+        }
+    };
+
+    ParseScope parseScope{ parseOK, mem, i };
+
     for (i = 0; i < size; )
     {
         while (i < size && isWS(mem[i])) {
@@ -275,14 +342,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     if (acceptHS())
                     {
                         // position
-                        float x, y, z;
-                        if (!parseFloat(&x) ||
-                            !acceptHS() ||
-                            !parseFloat(&y) ||
-                            !acceptHS() ||
-                            !parseFloat(&z))
+                        float pos[4];
+                        int card;
+                        if (!parse1To4Floats(pos, &positionCardinality, &card))
                         {
-                            // failed to parse x y z
                             return false;
                         }
 
@@ -293,9 +356,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             return false;
                         }
 
-                        vs.push_back(x);
-                        vs.push_back(y);
-                        vs.push_back(z);
+                        for (int c = 0; c < card; c++)
+                        {
+                            vs.push_back(pos[c]);
+                        }
                     }
                     else if (mem[i] == 't')
                     {
@@ -303,12 +367,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         i++;
                         if (acceptHS())
                         {
-                            float u, v;
-                            if (!parseFloat(&u) ||
-                                !acceptHS() ||
-                                !parseFloat(&v))
+                            float tc[4];
+                            int card;
+                            if (!parse1To4Floats(tc, &texCoordCardinality, &card))
                             {
-                                // failed to parse u v
                                 return false;
                             }
 
@@ -318,9 +380,11 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                                 // expected end of line
                                 return false;
                             }
-                            
-                            vts.push_back(u);
-                            vts.push_back(v);
+
+                            for (int c = 0; c < card; c++)
+                            {
+                                vts.push_back(tc[c]);
+                            }
                         }
                         else
                         {
@@ -334,14 +398,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         i++;
                         if (acceptHS())
                         {
-                            float x, y, z;
-                            if (!parseFloat(&x) ||
-                                !acceptHS() ||
-                                !parseFloat(&y) ||
-                                !acceptHS() ||
-                                !parseFloat(&z))
+                            float norm[4];
+                            int card;
+                            if (!parse1To4Floats(norm, &normalCardinality, &card))
                             {
-                                // failed to parse x y z
                                 return false;
                             }
 
@@ -352,9 +412,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                                 return false;
                             }
 
-                            vns.push_back(x);
-                            vns.push_back(y);
-                            vns.push_back(z);
+                            for (int c = 0; c < card; c++)
+                            {
+                                vns.push_back(norm[c]);
+                            }
                         }
                         else
                         {
@@ -421,15 +482,15 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
                         if (vi < 0)
                         {
-                            vi = (int)vs.size() / 3 + vi + 1;
+                            vi = (int)vs.size() / positionCardinality + vi + 1;
                         }
                         if (vti < 0)
                         {
-                            vti = (int)vts.size() / 2 + vti + 1;
+                            vti = (int)vts.size() / texCoordCardinality + vti + 1;
                         }
                         if (vni < 0)
                         {
-                            vni = (int)vns.size() / 3 + vni + 1;
+                            vni = (int)vns.size() / normalCardinality + vni + 1;
                         }
 
                         if (j == 0)
@@ -574,6 +635,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         emitGroup();
     }
 
+    parseOK = true;
+
     if (!pMesh)
     {
         // nothing to do
@@ -613,14 +676,14 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     glBindVertexArray(pMesh->VertexArray);
     
     // set up buffer bindings
-    glBindVertexBuffer(MeshObjectVertexBindingIndex::Position, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::Position], 0, sizeof(float) * 3);
-    glBindVertexBuffer(MeshObjectVertexBindingIndex::TexCoord, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::TexCoord], 0, sizeof(float) * 2);
-    glBindVertexBuffer(MeshObjectVertexBindingIndex::Normal, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::Normal], 0, sizeof(float) * 3);
+    glBindVertexBuffer(MeshObjectVertexBindingIndex::Position, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::Position], 0, sizeof(float) * positionCardinality);
+    glBindVertexBuffer(MeshObjectVertexBindingIndex::TexCoord, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::TexCoord], 0, sizeof(float) * texCoordCardinality);
+    glBindVertexBuffer(MeshObjectVertexBindingIndex::Normal, pMesh->VertexBuffers[MeshObjectVertexBindingIndex::Normal], 0, sizeof(float) * normalCardinality);
     
     // set up attributes
-    glVertexAttribFormat(MeshObjectVertexAttribIndex::Position, 3, GL_FLOAT, GL_FALSE, 0);
-    glVertexAttribFormat(MeshObjectVertexAttribIndex::TexCoord, 2, GL_FLOAT, GL_FALSE, 0);
-    glVertexAttribFormat(MeshObjectVertexAttribIndex::Normal, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribFormat(MeshObjectVertexAttribIndex::Position, positionCardinality, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribFormat(MeshObjectVertexAttribIndex::TexCoord, texCoordCardinality, GL_FLOAT, GL_FALSE, 0);
+    glVertexAttribFormat(MeshObjectVertexAttribIndex::Normal, normalCardinality, GL_FLOAT, GL_FALSE, 0);
 
     // hook up the attributes to the buffer bindings
     glVertexAttribBinding(MeshObjectVertexAttribIndex::Position, MeshObjectVertexBindingIndex::Position);
@@ -631,6 +694,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     glEnableVertexAttribArray(MeshObjectVertexAttribIndex::Position);
     glEnableVertexAttribArray(MeshObjectVertexAttribIndex::TexCoord);
     glEnableVertexAttribArray(MeshObjectVertexAttribIndex::Normal);
+
+    pMesh->AttributeSizes[MeshObjectVertexAttribIndex::Position] = positionCardinality;
+    pMesh->AttributeSizes[MeshObjectVertexAttribIndex::TexCoord] = texCoordCardinality;
+    pMesh->AttributeSizes[MeshObjectVertexAttribIndex::Normal] = normalCardinality;
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pMesh->IndexBuffer);
     glBindVertexArray(0);

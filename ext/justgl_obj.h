@@ -77,7 +77,12 @@ public:
     GLuint IndirectDrawBuffer;
 
     // CPU data so you wanna do some other manipulations
+    int PositionSize;
+    int TexCoordSize;
+    int NormalSize;
+
     std::array<std::vector<float>, MeshObjectVertexBindingIndex::Count> CPUVertexBuffers;
+    std::array<int, MeshObjectVertexAttribIndex::Count> AttributeSizes;
     std::vector<GLuint> CPUIndexBuffer;
     std::vector<GLDrawElementsIndirectCommand> CPUIndirectDrawBuffer;
 

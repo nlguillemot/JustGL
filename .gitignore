@@ -10,3 +10,4 @@ JustGL.sln
 JustGL.vcxproj
 JustGL.vcxproj.filters
 test.cpp
+*.obj

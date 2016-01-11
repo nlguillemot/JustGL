@@ -3,9 +3,126 @@
 
 #include <vector>
 #include <cstdio>
+#include <utility>
+#include <cctype>
 
 std::set<Shader*> Shader::AllShaders;
 std::set<ShaderProgram*> ShaderProgram::AllPrograms;
+
+static bool ReadAndExpandIncludes(const char* filename, std::string& result)
+{
+    MappedFile shaderFile = MapFileForRead(filename);
+    if (!shaderFile.Data)
+    {
+        return false;
+    }
+
+    std::vector<std::pair<uint64_t, uint64_t>> includeSpans;
+    std::vector<std::pair<uint64_t, uint64_t>> includeFilenameSpans;
+
+    const char* mem = shaderFile.Data;
+    uint64_t size = shaderFile.Size;
+    
+    std::string includePrefix = "#include";
+
+    for (uint64_t i = 0; i < size; )
+    {
+        while (i < size && (mem[i] == ' ' || mem[i] == '\t'))
+        {
+            i++;
+        }
+
+        if (size - i >= includePrefix.size() && memcmp(&mem[i], includePrefix.data(), includePrefix.length()) == 0)
+        {
+            // found an include line
+            std::pair<uint64_t, uint64_t> includeSpan;
+            includeSpan.first = i;
+            
+            i += includePrefix.length();
+            while (i < size && (mem[i] == ' ' || mem[i] == '\t'))
+            {
+                i++;
+            }
+
+            if (i < size && mem[i] == '\"')
+            {
+                i++;
+
+                std::pair<uint64_t, uint64_t> includeFilenameSpan;
+                includeFilenameSpan.first = i;
+
+                while (i < size && (mem[i] != '\"' && mem[i] != '\n' && mem[i] != '\r'))
+                {
+                    i++;
+                }
+
+                if (i < size && mem[i] == '\"')
+                {
+                    includeFilenameSpan.second = i;
+                    includeFilenameSpans.push_back(includeFilenameSpan);
+
+                    i++;
+                    includeSpan.second = i;
+                    includeSpans.push_back(includeSpan);
+                }
+                else
+                {
+                    // expected ending quote
+                    return false;
+                }
+            }
+            else
+            {
+                // expected opening quote
+                return false;
+            }
+        }
+        else
+        {
+            // not an include line
+            while (i < size && (mem[i] != '\n' && mem[i] != '\r'))
+            {
+                i++;
+            }
+        }
+
+        if (i < size)
+        {
+            if (mem[i] == '\n' || mem[i] == '\r')
+            {
+                while (i < size && (mem[i] == '\n' || mem[i] == '\r'))
+                {
+                    i++;
+                }
+            }
+            else
+            {
+                // expected newline at the end of the line (or after the include)
+                return false;
+            }
+        }
+    }
+
+    // insert the includes in reverse order to not screw up the spans' locations
+    result.clear();
+    result.append(mem, size);
+    for (size_t i = 0; i < includeSpans.size(); i++)
+    {
+        std::pair<uint64_t, uint64_t> span = includeSpans[includeSpans.size() - i - 1];
+        std::pair<uint64_t, uint64_t> filenameSpan = includeFilenameSpans[includeFilenameSpans.size() - i - 1];
+
+        std::string includedFilename(&mem[filenameSpan.first], &mem[filenameSpan.second]);
+        std::string includedFileBody;
+        if (!ReadAndExpandIncludes(includedFilename.c_str(), includedFileBody))
+        {
+            return false;
+        }
+
+        result.replace(span.first, span.second - span.first, includedFileBody);
+    }
+
+    return true;
+}
 
 bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>* pUpdatedPrograms)
 {
@@ -34,18 +151,19 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
             shader->Timestamp = timestamp;
             shader->Handle = 0;
 
-            MappedFile shaderFile = MapFileForRead(shader->Filename.c_str());
-            if (!shaderFile.Data)
+            std::string source;
+            if (!ReadAndExpandIncludes(shader->Filename.c_str(), source))
             {
+                fprintf(stderr, "Failed to read and expand includes in %s\n", shader->Filename.c_str());
                 anyBroken = true;
                 continue;
             }
 
-            const char* data = shaderFile.Data;
-            GLint size = (GLint)shaderFile.Size;
+            const char* data = source.c_str();
+            GLint length = (GLint)source.length();
 
             shader->Handle = glCreateShader(shader->Type);
-            glShaderSource(shader->Handle, 1, &data, &size);
+            glShaderSource(shader->Handle, 1, &data, &length);
             glCompileShader(shader->Handle);
 
             GLint status;
@@ -58,12 +176,19 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
                 glGetShaderInfoLog(shader->Handle, logLength, NULL, log.data());
                 fprintf(stderr, "Error compiling %s: %s\n", shader->Filename.c_str(), log.data());
                 anyBroken = true;
+
+                glDeleteShader(shader->Handle);
+                shader->Handle = 0;
             }
             else
             {
                 printf("Compiled %s successfully.\n", shader->Filename.c_str());
                 pUpdatedShaders->insert(shader);
             }
+        }
+        else if (shader->Handle == 0)
+        {
+            anyBroken = true;
         }
     }
 
@@ -147,6 +272,9 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
                 printShaders(stderr);
                 fprintf(stderr, "\n%s\n", log.data());
                 anyBroken = true;
+
+                glDeleteProgram(program->Handle);
+                program->Handle = 0;
             }
             else
             {

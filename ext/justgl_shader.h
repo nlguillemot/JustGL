@@ -5,6 +5,7 @@
 
 #include <set>
 #include <map>
+#include <vector>
 #include <string>
 #include <utility>
 #include <cstring>
@@ -91,6 +92,8 @@ public:
     GLenum Type;
     uint64_t Timestamp;
     GLuint Handle;
+    
+    std::vector<std::string> IncludeDependencies;
 };
 
 inline void swap(Shader& a, Shader& b)
@@ -99,6 +102,7 @@ inline void swap(Shader& a, Shader& b)
     std::swap(a.Type, b.Type);
     std::swap(a.Timestamp, b.Timestamp);
     std::swap(a.Handle, b.Handle);
+    std::swap(a.IncludeDependencies, b.IncludeDependencies);
 }
 
 class ShaderProgram;

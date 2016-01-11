@@ -135,8 +135,7 @@ inline vec2_t<T> operator*(vec2_t<T> a, T u)
 template<class T>
 inline vec2_t<T> operator*(T u, vec2_t<T> a)
 {
-    a = u * a;
-    return a;
+    return vec2_t<T>(u * a.x, u * a.y);
 }
 
 template<class T>
@@ -162,6 +161,24 @@ inline T dot(const vec2_t<T>& a, const vec2_t<T>& b)
         d += a[i] * b[i];
     }
     return d;
+}
+
+template<class T>
+inline T length(const vec2_t<T>& v)
+{
+    return sqrt(dot(v, v));
+}
+
+template<class T>
+vec2_t<T> normalize(const vec2_t<T>& v)
+{
+    return v / length(v);
+}
+
+template<class T>
+vec2_t<T> abs(const vec2_t<T>& v)
+{
+    return vec2_t<T>(abs(v.x), abs(v.y));
 }
 
 template<class T>
@@ -311,8 +328,7 @@ inline vec3_t<T> operator*(vec3_t<T> a, T u)
 template<class T>
 inline vec3_t<T> operator*(T u, vec3_t<T> a)
 {
-    a = u * a;
-    return a;
+    return vec3_t<T>(u * a.x, u * a.y, u * a.z);
 }
 
 template<class T>
@@ -341,12 +357,30 @@ inline T dot(const vec3_t<T>& a, const vec3_t<T>& b)
 }
 
 template<class T>
+inline T length(const vec3_t<T>& v)
+{
+    return sqrt(dot(v, v));
+}
+
+template<class T>
+vec3_t<T> normalize(const vec3_t<T>& v)
+{
+    return v / length(v);
+}
+
+template<class T>
 inline vec3_t<T> cross(const vec3_t<T>& a, const vec3_t<T>& b)
 {
     return vec3_t<T>(
         a.y * b.z - a.z * b.y,
         a.z * b.x - a.x * b.z,
         a.x * b.y - a.y * b.x);
+}
+
+template<class T>
+vec3_t<T> abs(const vec3_t<T>& v)
+{
+    return vec3_t<T>(abs(v.x), abs(v.y), abs(v.z));
 }
 
 template<class T>
@@ -532,8 +566,7 @@ inline vec4_t<T> operator*(vec4_t<T> a, T u)
 template<class T>
 inline vec4_t<T> operator*(T u, vec4_t<T> a)
 {
-    a = u * a;
-    return a;
+    return vec4_t<T>(u * a.x, u * a.y, u * a.z, u * a.w);
 }
 
 template<class T>
@@ -562,6 +595,24 @@ inline T dot(const vec4_t<T>& a, const vec4_t<T>& b)
 }
 
 template<class T>
+inline T length(const vec4_t<T>& v)
+{
+    return sqrt(dot(v, v));
+}
+
+template<class T>
+vec4_t<T> normalize(const vec4_t<T>& v)
+{
+    return v / length(v);
+}
+
+template<class T>
+vec4_t<T> abs(const vec4_t<T>& v)
+{
+    return vec4_t<T>(abs(v.x), abs(v.y), abs(v.z), abs(v.w));
+}
+
+template<class T>
 struct mat2_t
 {
     T e[4];
@@ -573,9 +624,10 @@ struct mat2_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c == r)
                 {
                     e[i] = T(1);
@@ -592,9 +644,10 @@ struct mat2_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c == r)
                 {
                     e[i] = u;
@@ -658,6 +711,15 @@ inline mat2_t<T> operator*(mat2_t<T> a, const mat2_t<T>& b)
 }
 
 template<class T>
+inline mat2_t<T> transpose(const mat2_t<T>& m)
+{
+    const T* e = m.e;
+    return mat2_t<T>(
+        e[0], e[2],
+        e[1], e[3]);
+}
+
+template<class T>
 struct mat3_t
 {
     T e[9];
@@ -669,9 +731,10 @@ struct mat3_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c == r)
                 {
                     e[i] = T(1);
@@ -688,9 +751,10 @@ struct mat3_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c == r)
                 {
                     e[i] = u;
@@ -707,9 +771,10 @@ struct mat3_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c < 2 && r < 2)
                 {
                     e[i] = other.e[mat3_t<T>::NRows * c + r]
@@ -785,6 +850,16 @@ inline mat3_t<T> operator*(mat3_t<T> a, const mat3_t<T>& b)
 }
 
 template<class T>
+inline mat3_t<T> transpose(const mat3_t<T>& m)
+{
+    const T* e = m.e;
+    return mat3_t<T>(
+        e[0], e[3], e[6],
+        e[1], e[4], e[7],
+        e[2], e[5], e[8]);
+}
+
+template<class T>
 struct mat4_t
 {
     T e[16];
@@ -796,9 +871,10 @@ struct mat4_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c == r)
                 {
                     e[i] = T(1);
@@ -815,9 +891,10 @@ struct mat4_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c == r)
                 {
                     e[i] = u;
@@ -834,9 +911,10 @@ struct mat4_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c < 2 && r < 2)
                 {
                     e[i] = other.e[mat2_t<T>::NRows * c + r]
@@ -857,9 +935,10 @@ struct mat4_t
     {
         for (int c = 0; c < NCols; c++)
         {
-            int i = NRows * c + r;
             for (int r = 0; r < NRows; r++)
             {
+                int i = NRows * c + r;
+
                 if (c < 3 && r < 3)
                 {
                     e[i] = other.e[mat3_t<T>::NRows * c + r]
@@ -985,11 +1064,12 @@ struct mat4_t
         vec3_t<T> f = normalize(center - eye);
         vec3_t<T> s = cross(f, normalize(up));
         vec3_t<T> u = cross(normalize(s), f);
+        vec3_t<T> t(-dot(s, eye), -dot(u, eye), dot(f, eye));
         return mat4_t(
-            s[0], u[0], -f[0], T(0),
-            s[1], u[1], -f[1], T(0),
-            s[2], u[2], -f[2], T(0),
-            -eye.x, -eye.y, -eye.z, T(1));
+            s[0],  u[0], -f[0], T(0),
+            s[1],  u[1], -f[1], T(0),
+            s[2],  u[2], -f[2], T(0),
+            t[0],  t[1],  t[2], T(1));
     }
 };
 
@@ -998,6 +1078,17 @@ inline mat4_t<T> operator*(mat4_t<T> a, const mat4_t<T>& b)
 {
     a *= b;
     return a;
+}
+
+template<class T>
+inline mat4_t<T> transpose(const mat4_t<T>& m)
+{
+    const T* e = m.e;
+    return mat4_t<T>(
+        e[0], e[4], e[8],  e[12],
+        e[1], e[5], e[9],  e[13],
+        e[2], e[6], e[10], e[14],
+        e[3], e[7], e[11], e[15]);
 }
 
 using vec2 = vec2_t<float>;
