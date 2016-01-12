@@ -1,3 +1,27 @@
+/*
+    The MIT License (MIT)
+
+    Copyright (c) 2016 Nicolas Guillemot
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+*/
+
 #ifndef JUSTGL_SHADER_H
 #define JUSTGL_SHADER_H
 
@@ -98,11 +122,13 @@ public:
 
 inline void swap(Shader& a, Shader& b)
 {
-    std::swap(a.Filename, b.Filename);
-    std::swap(a.Type, b.Type);
-    std::swap(a.Timestamp, b.Timestamp);
-    std::swap(a.Handle, b.Handle);
-    std::swap(a.IncludeDependencies, b.IncludeDependencies);
+    using std::swap;
+
+    swap(a.Filename, b.Filename);
+    swap(a.Type, b.Type);
+    swap(a.Timestamp, b.Timestamp);
+    swap(a.Handle, b.Handle);
+    swap(a.IncludeDependencies, b.IncludeDependencies);
 }
 
 class ShaderProgram;
@@ -182,14 +208,17 @@ public:
 
 inline void swap(ShaderProgram& a, ShaderProgram& b)
 {
-    std::swap(a.VS, b.VS);
-    std::swap(a.FS, b.FS);
-    std::swap(a.GS, b.GS);
-    std::swap(a.TCS, b.TCS);
-    std::swap(a.TES, b.TES);
-    std::swap(a.CS, b.CS);
-    std::swap(a.Handle, b.Handle);
-    std::swap(a.PreLinkParametersi, b.PreLinkParametersi);
+    using std::swap;
+
+    swap(a.VS, b.VS);
+    swap(a.FS, b.FS);
+    swap(a.GS, b.GS);
+    swap(a.TCS, b.TCS);
+    swap(a.TES, b.TES);
+    swap(a.CS, b.CS);
+    swap(a.Handle, b.Handle);
+
+    swap(a.PreLinkParametersi, b.PreLinkParametersi);
 }
 
 // Returns false if any shaders failed to compile/link.

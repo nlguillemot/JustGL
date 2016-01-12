@@ -22,5 +22,32 @@
     SOFTWARE.
 */
 
-#define JUSTGL_IMPLEMENTATION
-#include "justgl.h"
+#ifndef JUSTGL_IMAGE_H
+#define JUSTGL_IMAGE_H
+
+#include <cstdint>
+#include <string>
+#include <memory>
+
+class Image
+{
+public:
+    Image()
+        : BytesPerPixel(0)
+        , Width(0)
+        , Height(0)
+        , Depth(0)
+    {
+    }
+
+    std::unique_ptr<uint8_t[]> Data;
+
+    int BytesPerPixel;
+    int Width;
+    int Height;
+    int Depth;
+};
+
+Image ReadImageFromFile(const std::string& filename);
+
+#endif // JUSTGL_IMAGE_H

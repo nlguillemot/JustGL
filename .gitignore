@@ -6,8 +6,18 @@ x64/Debug
 x64/Release
 
 # stuff for my testing purposes
-JustGL.sln
-JustGL.vcxproj
-JustGL.vcxproj.filters
+*.sln
+*.vcxproj
+*.vcxproj.filters
 test.cpp
 *.obj
+textures
+*.mtl
+*.exe
+*.glsl
+*.frag
+*.vert
+*.geom
+*.tese
+*.tesc
+*.comp
