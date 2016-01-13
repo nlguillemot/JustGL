@@ -43,9 +43,11 @@ static bool ReadAndExpandIncludes(const char* filename, std::string& result)
 
     std::vector<std::pair<uint64_t, uint64_t>> includeSpans;
     std::vector<std::pair<uint64_t, uint64_t>> includeFilenameSpans;
+    std::vector<int> spanLineNumbers;
 
     const char* mem = shaderFile.Data;
     uint64_t size = shaderFile.Size;
+    int lineNumber = 1;
     
     std::string includePrefix = "#include";
 
@@ -88,6 +90,8 @@ static bool ReadAndExpandIncludes(const char* filename, std::string& result)
                     i++;
                     includeSpan.second = i;
                     includeSpans.push_back(includeSpan);
+
+                    spanLineNumbers.push_back(lineNumber);
                 }
                 else
                 {
@@ -116,6 +120,10 @@ static bool ReadAndExpandIncludes(const char* filename, std::string& result)
             {
                 while (i < size && (mem[i] == '\n' || mem[i] == '\r'))
                 {
+                    if (mem[i] == '\n')
+                    {
+                        lineNumber++;
+                    }
                     i++;
                 }
             }
@@ -142,7 +150,10 @@ static bool ReadAndExpandIncludes(const char* filename, std::string& result)
             return false;
         }
 
+        std::string lineReset = "\n#line " + std::to_string(spanLineNumbers[i] + 1);
+        result.insert(span.second, lineReset);
         result.replace(span.first, span.second - span.first, includedFileBody);
+        result.insert(span.first, "#line 1\n");
     }
 
     return true;

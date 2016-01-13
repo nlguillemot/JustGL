@@ -21,3 +21,5 @@ textures
 *.tese
 *.tesc
 *.comp
+stb_image.h
+stb_image.cpp

@@ -28,10 +28,14 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <functional>
 
 class Image
 {
 public:
+    // Set this if the built-in image loader isn't fancy enough for you
+    static std::function<Image(const std::string&)>* CustomImageLoader;
+
     Image()
         : BytesPerPixel(0)
         , Width(0)
@@ -40,7 +44,7 @@ public:
     {
     }
 
-    std::unique_ptr<uint8_t[]> Data;
+    std::shared_ptr<uint8_t> Data;
 
     int BytesPerPixel;
     int Width;
@@ -48,6 +52,7 @@ public:
     int Depth;
 };
 
+// Returns image with NULL Data if it fails.
 Image ReadImageFromFile(const std::string& filename);
 
 #endif // JUSTGL_IMAGE_H

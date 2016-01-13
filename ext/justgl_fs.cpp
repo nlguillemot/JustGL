@@ -29,9 +29,9 @@
 #include <Windows.h>
 #include <cstdio>
 
-static bool CheckWin32(BOOL b, const wchar_t* info)
+static bool CheckWin32(BOOL b, const WCHAR* info)
 {
-    if (b == TRUE)
+    if (b)
     {
         return true;
     }
@@ -54,13 +54,18 @@ static bool CheckWin32(BOOL b, const wchar_t* info)
 
 uint64_t GetFileTimestamp(const char* filename)
 {
-    wchar_t* wfilename = (wchar_t*)malloc(sizeof(wchar_t) * (strlen(filename) + 1));
-    int i;
-    for (i = 0; filename[i] != '\0'; i++)
+    int fileBufferSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filename, -1, NULL, 0);
+    if (!CheckWin32(fileBufferSize != 0, L"MultiByteToWideChar"))
     {
-        wfilename[i] = filename[i];
+        return 0;
     }
-    wfilename[i] = '\0';
+
+    WCHAR* wfilename = (WCHAR*)malloc(sizeof(WCHAR) * fileBufferSize);
+    if (!CheckWin32(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filename, -1, wfilename, fileBufferSize), L"MultiByteToWideChar"))
+    {
+        free(wfilename);
+        return 0;
+    }
 
     HANDLE hFile = CreateFileW(wfilename, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
@@ -98,19 +103,19 @@ MappedFile MapFileForRead(const char* filename)
     MappedFile result;
     Win32FileMapping mapping{ INVALID_HANDLE_VALUE, NULL };
     char* data = NULL;
+    WCHAR* wfilename = NULL;
 
-    wchar_t* wfilename = (wchar_t*)malloc(sizeof(wchar_t) * (strlen(filename) + 1));
-    if (!wfilename)
+    int fileBufferSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filename, -1, NULL, 0);
+    if (!CheckWin32(fileBufferSize != 0, L"MultiByteToWideChar"))
     {
         goto fail;
     }
 
-    int i;
-    for (i = 0; filename[i] != '\0'; i++)
+    wfilename = (WCHAR*)malloc(sizeof(WCHAR) * fileBufferSize);
+    if (!CheckWin32(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, filename, -1, wfilename, fileBufferSize), L"MultiByteToWideChar"))
     {
-        wfilename[i] = filename[i];
+        goto fail;
     }
-    wfilename[i] = '\0';
 
     mapping.hFile = CreateFileW(wfilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     CheckWin32(mapping.hFile != INVALID_HANDLE_VALUE, L"CreateFileW");
@@ -152,6 +157,10 @@ MappedFile MapFileForRead(const char* filename)
     return result;
 
 fail:
+    if (wfilename)
+    {
+        free(wfilename);
+    }
     if (data)
     {
         CheckWin32(UnmapViewOfFile(data), L"UnmapViewOfFile");

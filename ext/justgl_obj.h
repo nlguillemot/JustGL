@@ -26,6 +26,7 @@
 #define JUSTGL_OBJ_H
 
 #include "justgl.h"
+#include "justgl_image.h"
 
 #include <vector>
 #include <array>
@@ -119,6 +120,7 @@ public:
     }
 
     std::vector<GLuint> Textures;
+    std::vector<Image> Images;
     std::vector<std::vector<std::string>> TextureFilenames; // One texture can have >1 filename eg. if it's a cubemap
 
     std::vector<Material> Materials;
@@ -129,6 +131,7 @@ inline void swap(MaterialPalette& a, MaterialPalette& b)
     using std::swap;
 
     swap(a.Textures, b.Textures);
+    swap(a.Images, b.Images);
     swap(a.TextureFilenames, b.TextureFilenames);
 
     swap(a.Materials, b.Materials);

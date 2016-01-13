@@ -25,6 +25,8 @@
 #include "justgl_image.h"
 #include "justgl_fs.h"
 
+std::function<Image(const std::string&)>* Image::CustomImageLoader = nullptr;
+
 Image ReadTGAImage(const unsigned char* data, uint64_t size)
 {
     uint64_t i = 0;
@@ -226,7 +228,7 @@ Image ReadTGAImage(const unsigned char* data, uint64_t size)
 
     Image img;
     img.Data = std::move(imageData);
-    img.BytesPerPixel = bytesPerPixel;
+    img.BytesPerPixel = 4;
     img.Width = imageWidth;
     img.Height = imageHeight;
     img.Depth = 1;
@@ -248,6 +250,18 @@ Image ReadImageFromFile(const std::string& filename)
     }
 
     std::string ext = filename.substr(extLoc + 1);
+
+    // try using the custom image loader if it's available
+    if (Image::CustomImageLoader != nullptr)
+    {
+        Image customLoaded = (*Image::CustomImageLoader)(filename);
+        if (customLoaded.Data)
+        {
+            return std::move(customLoaded);
+        }
+    }
+
+    // fall back to built-in loader
     if (ext == "tga")
     {
         return ReadTGAImage((const unsigned char*)mapped.Data, mapped.Size);

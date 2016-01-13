@@ -264,6 +264,12 @@ bool ParseMtl(const char* filename, const char* mtlpath, std::map<std::string, M
 
     auto emitMaterial = [&]()
     {
+        if (currMaterial.newmtl.empty())
+        {
+            // no material to emit
+            return true;
+        }
+
         auto found = pMaterials->find(currMaterial.newmtl);
         if (found != end(*pMaterials))
         {
@@ -570,19 +576,53 @@ bool ParseMtl(const char* filename, const char* mtlpath, std::map<std::string, M
         }
     }
 
+    if (!emitMaterial())
+    {
+        // duplicate material
+        return false;
+    }
+
     return true;
 }
 
 bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, MaterialPalette* pPaletteToAddTo)
 {
+
+    bool parseOK = false;
+    std::string errorMessage = "No error";
+
+    struct ParseScope
+    {
+        bool& parseOK;
+        const char*& mem;
+        std::string& errorMessage;
+        size_t& i;
+
+        ~ParseScope()
+        {
+            if (!parseOK)
+            {
+                fprintf(stderr, "Error loading obj: %s\n", errorMessage.c_str());
+                DebugBreak();
+            }
+        }
+    };
+
+    const char* mem = NULL;
+    uint64_t i = -1;
+
+    ParseScope parseScope{ parseOK, mem, errorMessage, i };
+
     if (!filename)
     {
+        errorMessage = "No filename supplied";
         return false;
     }
 
     MappedFile mapping = MapFileForRead(filename);
     if (!mapping.Data)
     {
+        errorMessage = "MapFileForRead failed";
         return false;
     }
 
@@ -722,12 +762,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
     };
 
-    const char* mem = mapping.Data;
+    mem = mapping.Data;
     uint64_t size = mapping.Size;
 
-    size_t i;
-
-    auto parseFloat = [mem, &i, &size, isDigit, isAlpha](float* f)
+    auto parseFloat = [&](float* f)
     {
         uint64_t end = i;
         while (end < size && (isDigit(mem[end]) || isAlpha(mem[end]) || mem[end] == '.' || mem[end] == '-' || mem[end] == '+'))
@@ -739,7 +777,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         char buf[256];
         if (len + 1 >= sizeof(buf))
         {
-            fprintf(stderr, "Calm down with your floats\n");
+            errorMessage = "Float too big for buffer";
             return false;
         }
 
@@ -754,6 +792,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         float parsed = strtof(buf, nullptr);
         if (errno)
         {
+            errorMessage = "strof failed";
             return false;
         }
         else
@@ -764,7 +803,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
     };
 
-    auto parseInt = [mem, &i, &size, isWS, isDigit](int* ii)
+    auto parseInt = [&](int* ii)
     {
         uint64_t end = i;
         while (end < size && (isDigit(mem[end]) || mem[end] == '-' || mem[end] == '+'))
@@ -776,7 +815,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         char buf[256];
         if (len + 1 >= sizeof(buf))
         {
-            fprintf(stderr, "Calm down with your ints\n");
+            errorMessage = "Int too big for buffer";
             return false;
         }
 
@@ -791,6 +830,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         int parsed = strtol(buf, nullptr, 10);
         if (errno)
         {
+            errorMessage = "strtol failed";
             return false;
         }
         else
@@ -801,7 +841,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
     };
 
-    auto acceptString = [mem, &i, &size, isWS](std::string* s)
+    auto acceptString = [&](std::string* s)
     {
         uint64_t old_i = i;
         while (i < size && !isWS(mem[i]))
@@ -811,6 +851,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         
         if (i - old_i == 0)
         {
+            errorMessage = "expected token";
             return false;
         }
 
@@ -818,7 +859,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         return true;
     };
 
-    auto acceptHS = [mem, &i, &size, isHS]()
+    auto acceptHS = [&]()
     {
         uint64_t old = i;
         while (i < size && isHS(mem[i]))
@@ -832,6 +873,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         else
         {
             i = old;
+            errorMessage = "expected horizontal space";
             return false;
         }
     };
@@ -860,7 +902,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
         if (foundCardinality == 0)
         {
-            // expected 1-4 floats
+            errorMessage = "Expected 1 to 4 floats, got none";
             return false;
         }
 
@@ -872,7 +914,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         {
             if (foundCardinality != *expectedCardinality)
             {
-                // inconsistent cardinality
+                errorMessage = "Inconsistent cardinality";
                 return false;
             }
         }
@@ -880,25 +922,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         *cardinality = foundCardinality;
         return true;
     };
-
-    bool parseOK = false;
-
-    struct ParseScope
-    {
-        bool& parseOK;
-        const char*& mem;
-        size_t& i;
-
-        ~ParseScope()
-        {
-            if (!parseOK)
-            {
-                DebugBreak();
-            }
-        }
-    };
-
-    ParseScope parseScope{ parseOK, mem, i };
 
     for (i = 0; i < size; )
     {
@@ -938,7 +961,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         optionalHS();
                         if (!(i >= size || isNL(mem[i])))
                         {
-                            // expected end of line
+                            errorMessage = "expected end of line";
                             return false;
                         }
 
@@ -963,12 +986,17 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             optionalHS();
                             if (!(i >= size || isNL(mem[i])))
                             {
-                                // expected end of line
+                                errorMessage = "expected end of line";
                                 return false;
                             }
 
                             for (int c = 0; c < card; c++)
                             {
+                                if (c == 1)
+                                {
+                                    // OpenGL convention: y is at bottom
+                                    tc[c] = 1.0f - tc[c];
+                                }
                                 vts.push_back(tc[c]);
                             }
                         }
@@ -994,7 +1022,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             optionalHS();
                             if (!(i >= size || isNL(mem[i])))
                             {
-                                // expected end of line
+                                errorMessage = "expected end of line";
                                 return false;
                             }
 
@@ -1011,13 +1039,13 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     }
                     else
                     {
-                        // unknown start of line
+                        errorMessage = "unknown start of line";
                         return false;
                     }
                 }
                 else
                 {
-                    // unexpected end
+                    errorMessage = "unexpected end of file";
                     return false;
                 }
             }
@@ -1035,7 +1063,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
                         if (!parseInt(&vi))
                         {
-                            // expected index
                             return false;
                         }
 
@@ -1050,7 +1077,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             {
                                 if (!parseInt(&vti))
                                 {
-                                    // expected index
                                     return false;
                                 }
                             }
@@ -1061,7 +1087,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             i++;
                             if (!parseInt(&vni))
                             {
-                                // expected index
                                 return false;
                             }
                         }
@@ -1102,7 +1127,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         {
                             if (j < 2)
                             {
-                                // not enough points for a triangle
+                                errorMessage = "not enough points for a triangle";
                                 return false;
                             }
                             else
@@ -1119,14 +1144,12 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
                 if (!acceptHS())
                 {
-                    // unknown start of line
                     return false;
                 }
 
                 std::string newName;
                 if (!acceptString(&newName))
                 {
-                    // expected group name
                     return false;
                 }
                    
@@ -1142,7 +1165,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 i++;
                 if (!acceptHS())
                 {
-                    // unknown start of line
                     return false;
                 }
 
@@ -1161,7 +1183,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     std::string mtllibname;
                     if (!acceptHS() || !acceptString(&mtllibname))
                     {
-                        // expected material library name
                         return false;
                     }
                     else
@@ -1179,7 +1200,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                             MTLMaterial parsedMtl;
                             if (!ParseMtl(fullpath.c_str(), mtlpath, &parsedMaterials))
                             {
-                                // failed to parse mtl
+                                errorMessage = "failed to parse mtl";
                                 return false;
                             }
                             parsedMaterialFiles.insert(mtllibname);
@@ -1190,7 +1211,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 }
                 else
                 {
-                    // unknown start of line
+                    errorMessage = "unknown start of line";
                     return false;
                 }
             }
@@ -1203,14 +1224,13 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     std::string mtlname;
                     if (!acceptHS() || !acceptString(&mtlname))
                     {
-                        // expected material name
                         return false;
                     }
                     else
                     {
                         if (parsedMaterials.find(mtlname) == end(parsedMaterials))
                         {
-                            // unknown material name
+                            errorMessage = "unknown material name";
                             return false;
                         }
 
@@ -1223,7 +1243,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
             }
             else
             {
-                // unknown start of line
+                errorMessage = "unknown start of line";
                 return false;
             }
         }
@@ -1235,8 +1255,6 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
     // emit if this is not the first (and empty) group
     emitGroup();
-
-    parseOK = true;
 
     if (pMesh)
     {
@@ -1314,7 +1332,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 return mtl.mtllib == m.LibraryFilename && mtl.newmtl == m.Name;
             });
             
-            if (found == end(pPaletteToAddTo->Materials))
+            if (found != end(pPaletteToAddTo->Materials))
             {
                 // yup, we already have this one. skip!
                 continue;
@@ -1350,6 +1368,16 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 GL_RGBA8
             };
 
+            const int kNumComponentsToSizedSRGBFormat[5] = {
+                0,
+                0,
+                0,
+                GL_SRGB8,
+                GL_SRGB8_ALPHA8,
+            };
+
+            bool useSRGB = false;
+            
             auto emitTexture = [&](const std::string& filename, int* pTextureIndex)
             {
                 if (filename.empty())
@@ -1374,18 +1402,30 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 Image img = ReadImageFromFile(filename);
                 if (!img.Data)
                 {
+                    errorMessage = "ReadImageFromFile failed";
                     return false;
                 }
 
                 int numLevels = (int)std::floor(std::log2(std::max(img.Width, img.Height))) + 1;
 
+                GLenum sizedFormat;
+                if (useSRGB)
+                {
+                    sizedFormat = kNumComponentsToSizedSRGBFormat[img.BytesPerPixel];
+                }
+                else
+                {
+                    sizedFormat = kNumComponentsToSizedFormat[img.BytesPerPixel];
+                }
+
                 GLuint tex;
                 glGenTextures(1, &tex);
                 glBindTexture(GL_TEXTURE_2D, tex);
-                glTexStorage2D(GL_TEXTURE_2D, numLevels, kNumComponentsToSizedFormat[img.BytesPerPixel], img.Width, img.Height);
+                glTexStorage2D(GL_TEXTURE_2D, numLevels, sizedFormat, img.Width, img.Height);
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.Width, img.Height, kNumComponentsToFormat[img.BytesPerPixel], GL_UNSIGNED_BYTE, img.Data.get());
                 glGenerateMipmap(GL_TEXTURE_2D);
                 pPaletteToAddTo->Textures.push_back(tex);
+                pPaletteToAddTo->Images.push_back(std::move(img));
                 pPaletteToAddTo->TextureFilenames.push_back({ filename });
                 *pTextureIndex = (int)pPaletteToAddTo->Textures.size() - 1;
 
@@ -1409,7 +1449,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     (int)frontname.empty() + 
                     (int)backname.empty();
 
-                if (emptiness == 0)
+                if (emptiness == 6)
                 {
                     *pTextureIndex = -1;
                     return true;
@@ -1453,6 +1493,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     img = ReadImageFromFile(*filename);
                     if (!img.Data)
                     {
+                        errorMessage = "ReadImageFromFile failed";
                         return false;
                     }
 
@@ -1464,6 +1505,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     {
                         if (faceWidth != img.Width)
                         {
+                            errorMessage = "Inconsistent cubemap face width";
                             return false;
                         }
                     }
@@ -1476,6 +1518,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     {
                         if (faceHeight != img.Height)
                         {
+                            errorMessage = "Inconsistent cubemap face height";
                             return false;
                         }
                     }
@@ -1488,6 +1531,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     {
                         if (faceBytesPerPixel != img.BytesPerPixel)
                         {
+                            errorMessage = "Inconsistent cubemap face bytes per pixel";
                             return false;
                         }
                     }
@@ -1495,15 +1539,26 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
 
                 if (faceWidth == -1 || faceHeight == -1 || faceBytesPerPixel == -1)
                 {
+                    errorMessage = "Unknown face width/height/bytesperpixel";
                     return false;
                 }
 
                 int numLevels = (int)std::floor(std::log2(std::max(faceWidth, faceHeight))) + 1;
 
+                GLenum sizedFormat;
+                if (useSRGB)
+                {
+                    sizedFormat = kNumComponentsToSizedSRGBFormat[faceBytesPerPixel];
+                }
+                else
+                {
+                    sizedFormat = kNumComponentsToSizedFormat[faceBytesPerPixel];
+                }
+
                 GLuint tex;
                 glGenTextures(1, &tex);
                 glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
-                glTexStorage2D(GL_TEXTURE_CUBE_MAP, numLevels, kNumComponentsToSizedFormat[faceBytesPerPixel], faceWidth, faceHeight);
+                glTexStorage2D(GL_TEXTURE_CUBE_MAP, numLevels, sizedFormat, faceWidth, faceHeight);
                 for (GLenum target = GL_TEXTURE_CUBE_MAP_POSITIVE_X, faceIdx = 0; target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z; target++, faceIdx++)
                 {
                     if (!imgs[faceIdx].Data)
@@ -1516,36 +1571,86 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
                 pPaletteToAddTo->Textures.push_back(tex);
+                for (Image& img : imgs)
+                {
+                    pPaletteToAddTo->Images.push_back(std::move(img));
+                }
                 pPaletteToAddTo->TextureFilenames.push_back({ filename });
                 *pTextureIndex = (int)pPaletteToAddTo->Textures.size() - 1;
 
                 return true;
             };
 
-            emitTexture(mtl.map_Ka, &mat.map_Ka);
-            emitTexture(mtl.map_Kd, &mat.map_Kd);
-            emitTexture(mtl.map_Ks, &mat.map_Ks);
-            emitTexture(mtl.map_Ns, &mat.map_Ns);
-            emitTexture(mtl.map_d,  &mat.map_d);
-            emitTexture(mtl.disp, &mat.disp);
-            emitTexture(mtl.decal, &mat.decal);
-            emitTexture(mtl.bump, &mat.bump);
-            emitTexture(mtl.refl_sphere, &mat.refl_sphere);
-            emitTextureCube(
-                mtl.refl_cube_right, 
-                mtl.refl_cube_left, 
-                mtl.refl_cube_top, 
-                mtl.refl_cube_bottom, 
-                mtl.refl_cube_front, 
-                mtl.refl_cube_back,
-                &mat.refl_cube);
+            useSRGB = true;
+            if (!emitTexture(mtl.map_Ka, &mat.map_Ka) ||
+                !emitTexture(mtl.map_Kd, &mat.map_Kd) ||
+                !emitTexture(mtl.map_Ks, &mat.map_Ks))
+            {
+                return false;
+            }
+            
+            useSRGB = false;
+            if (!emitTexture(mtl.map_Ns, &mat.map_Ns) ||
+                !emitTexture(mtl.map_d, &mat.map_d) ||
+                !emitTexture(mtl.disp, &mat.disp))
+            {
+                return false;
+            }
+
+            useSRGB = true;
+            if (!emitTexture(mtl.decal, &mat.decal))
+            {
+                return false;
+            }
+
+            useSRGB = false;
+            if (!emitTexture(mtl.bump, &mat.bump))
+            {
+                return false;
+            }
+
+            useSRGB = true;
+            if (!emitTexture(mtl.refl_sphere, &mat.refl_sphere) ||
+                !emitTextureCube(
+                    mtl.refl_cube_right,
+                    mtl.refl_cube_left,
+                    mtl.refl_cube_top,
+                    mtl.refl_cube_bottom,
+                    mtl.refl_cube_front,
+                    mtl.refl_cube_back,
+                    &mat.refl_cube))
+            {
+                return false;
+            }
+
+            pPaletteToAddTo->Materials.push_back(std::move(mat));
         }
 
         if (pMesh)
         {
+            for (const std::string& materialName : materialNames)
+            {
+                auto found = std::find_if(begin(pPaletteToAddTo->Materials), end(pPaletteToAddTo->Materials),
+                    [&](const Material& mtl)
+                {
+                    // look for this material from one of this mesh's libraries
+                    return mtl.Name == materialName && mtl.LibraryFilename == parsedMaterials[mtl.Name].mtllib; 
+                });
+
+                if (found == end(pPaletteToAddTo->Materials))
+                {
+                    errorMessage = "Could not find material";
+                    return false;
+                }
+
+                groupMaterialIDs.push_back((int)std::distance(begin(pPaletteToAddTo->Materials), found));
+            }
+
             pMesh->GroupMaterialIDs = std::move(groupMaterialIDs);
         }
     }
+
+    parseOK = true;
 
     return true;
 }

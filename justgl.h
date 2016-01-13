@@ -59,6 +59,301 @@ void PaintGL();
 // Utility functions
 void* GetProcGL(const char* procname);
 
+typedef enum EventType
+{
+    ET_MouseMove,
+    ET_MouseButton,
+    ET_MouseScroll,
+    ET_Key,
+    ET_Char,
+    ET_Count
+} EventType;
+
+typedef struct MouseMoveEvent
+{
+    int X;
+    int Y;
+} MouseMoveEvent;
+
+typedef enum MouseButton
+{
+    MB_Left,
+    MB_Right,
+    MB_Middle,
+    MB_Count
+} MouseButton;
+
+typedef struct MouseButtonEvent
+{
+    int X, Y;
+    int Pressed;
+    MouseButton Button;
+} MouseButtonEvent;
+
+typedef struct MouseScrollEvent
+{
+    int X, Y;
+    int ScrollDelta;
+} MouseScrollEvent;
+
+// Corresponds to the meaning of the key pressed,
+// not to the physical location of the key itself.
+// Based on Virtual-Key Codes from Windows
+typedef enum Keycode
+{
+    KC_Backspace = 0x08,
+    KC_Tab = 0x09,
+    KC_Return = 0x0D,
+    KC_Shift = 0x10,
+    KC_Control = 0x11,
+    KC_Alt = 0x12,
+    KC_Pause = 0x13,
+    KC_CapsLock = 0x14,
+    KC_Escape = 0x1B,
+    KC_Accept = 0x1E,
+    KC_Space = 0x20,
+    KC_PageUp = 0x21,
+    KC_PageDown = 0x22,
+    KC_End = 0x23,
+    KC_Home = 0x24,
+    KC_Left = 0x25,
+    KC_Up = 0x26,
+    KC_Right = 0x27,
+    KC_Down = 0x28,
+    KC_PrintScreen = 0x2C,
+    KC_Insert = 0x2D,
+    KC_Delete = 0x2E,
+    KC_Help = 0x2F,
+    KC_0 = 0x30,
+    KC_1 = 0x31,
+    KC_2 = 0x32,
+    KC_3 = 0x33,
+    KC_4 = 0x34,
+    KC_5 = 0x35,
+    KC_6 = 0x36,
+    KC_7 = 0x37,
+    KC_8 = 0x38,
+    KC_9 = 0x39,
+    KC_A = 0x41,
+    KC_B = 0x42,
+    KC_C = 0x43,
+    KC_D = 0x44,
+    KC_E = 0x45,
+    KC_F = 0x46,
+    KC_G = 0x47,
+    KC_H = 0x48,
+    KC_I = 0x49,
+    KC_J = 0x4A,
+    KC_K = 0x4B,
+    KC_L = 0x4C,
+    KC_M = 0x4D,
+    KC_N = 0x4E,
+    KC_O = 0x4F,
+    KC_P = 0x50,
+    KC_Q = 0x51,
+    KC_R = 0x52,
+    KC_S = 0x53,
+    KC_T = 0x54,
+    KC_U = 0x55,
+    KC_V = 0x56,
+    KC_W = 0x57,
+    KC_X = 0x58,
+    KC_Y = 0x59,
+    KC_Z = 0x5A,
+    KC_LeftWindows = 0x5B,
+    KC_RightWindows = 0x5C,
+    KC_Menu = 0x5D,
+    KC_Numpad0 = 0x60,
+    KC_Numpad1 = 0x61,
+    KC_Numpad2 = 0x62,
+    KC_Numpad3 = 0x63,
+    KC_Numpad4 = 0x64,
+    KC_Numpad5 = 0x65,
+    KC_Numpad6 = 0x66,
+    KC_Numpad7 = 0x67,
+    KC_Numpad8 = 0x68,
+    KC_Numpad9 = 0x69,
+    KC_KeypadTimes = 0x6A,
+    KC_KeypadPlus = 0x6B,
+    KC_KeypadMinus = 0x6D,
+    KC_KeypadPerios = 0x6E,
+    KC_KeypadSlash = 0x6F,
+    KC_F1 = 0x70,
+    KC_F2 = 0x71,
+    KC_F3 = 0x72,
+    KC_F4 = 0x73,
+    KC_F5 = 0x74,
+    KC_F6 = 0x75,
+    KC_F7 = 0x76,
+    KC_F8 = 0x77,
+    KC_F9 = 0x78,
+    KC_F10 = 0x79,
+    KC_F11 = 0x7A,
+    KC_F12 = 0x7B,
+    KC_NumLock = 0x90,
+    KC_ScrollLock = 0x91,
+    KC_LeftShift = 0xA0,
+    KC_RightShift = 0xA1,
+    KC_LeftControl = 0xA2,
+    KC_RightControl = 0xA3,
+    KC_LeftAlt = 0xA4,
+    KC_RightAlt = 0xA5,
+    // "OEM" means it can change per-region
+    // Names are according to US standard keyboard
+    KC_Semicolon_OEM1 = 0xBA,
+    KC_Plus = 0xBB,
+    KC_Comma = 0xBC,
+    KC_Minus = 0xBD,
+    KC_Period = 0xBE,
+    KC_Slash_OEM2 = 0xBF,
+    KC_GraveAccent_OEM3 = 0xC0,
+    KC_LeftBracket_OEM4 = 0xDB,
+    KC_Backslash_OEM5 = 0xDC,
+    KC_RightBracket_OEM6 = 0xDD,
+    KC_QuoteSingle_OEM7 = 0xDE,
+} VirtualKeyCode;
+
+// Corresponds to the physical location of the key,
+// on the US standard layout.
+// Based on USB scancodes
+typedef enum Scancode
+{
+    SC_Escape = 0x1,
+    SC_1 = 0x2,
+    SC_2 = 0x3,
+    SC_3 = 0x4,
+    SC_4 = 0x5,
+    SC_5 = 0x6,
+    SC_6 = 0x7,
+    SC_7 = 0x8,
+    SC_8 = 0x9,
+    SC_9 = 0xA,
+    SC_0 = 0xB,
+    SC_Minus = 0xC,
+    SC_Equals = 0xD,
+    SC_Backspace = 0xE,
+    SC_Tab = 0xF,
+    SC_Q = 0x10,
+    SC_W = 0x11,
+    SC_E = 0x12,
+    SC_R = 0x13,
+    SC_T = 0x14,
+    SC_Y = 0x15,
+    SC_U = 0x16,
+    SC_I = 0x17,
+    SC_O = 0x18,
+    SC_P = 0x19,
+    SC_LeftBracket = 0x1A,
+    SC_RightBracket = 0x1B,
+    SC_Return = 0x1C,
+    SC_KeypadReturn = 0xE01C,
+    SC_LeftControl = 0x1D,
+    SC_RightControl = 0xE01D,
+    SC_Break = 0xE11D,
+    SC_A = 0x1E,
+    SC_S = 0x1F,
+    SC_D = 0x20,
+    SC_F = 0x21,
+    SC_G = 0x22,
+    SC_H = 0x23,
+    SC_J = 0x24,
+    SC_K = 0x25,
+    SC_L = 0x26,
+    SC_Semicolon = 0x27,
+    SC_QuoteSingle = 0x28,
+    SC_GraveAccent = 0x29,
+    SC_LeftShift = 0x2A,
+    SC_Backslash = 0x2B,
+    SC_Z = 0x2C,
+    SC_X = 0x2D,
+    SC_C = 0x2E,
+    SC_V = 0x2F,
+    SC_B = 0x30,
+    SC_N = 0x31,
+    SC_M = 0x32,
+    SC_Comma = 0x33,
+    SC_Period = 0x34,
+    SC_Slash = 0x35,
+    SC_KeypadSlash = 0xE035,
+    SC_RightShift = 0x36,
+    SC_KeypadTimes = 0x37,
+    SC_PrintScreen = 0xE037,
+    SC_LeftAlt = 0x38,
+    SC_RightAlt = 0xE038,
+    SC_Spacebar = 0x39,
+    SC_CapsLock = 0x3A,
+    SC_F1 = 0x3B,
+    SC_F2 = 0x3C,
+    SC_F3 = 0x3D,
+    SC_F4 = 0x3E,
+    SC_F5 = 0x3F,
+    SC_F6 = 0x40,
+    SC_F7 = 0x41,
+    SC_F8 = 0x42,
+    SC_F9 = 0x43,
+    SC_F10 = 0x44,
+    SC_NumLock = 0x45,
+    SC_ScrollLock = 0x46,
+    SC_Keypad7 = 0x47,
+    SC_Home = 0xE047,
+    SC_Keypad8 = 0x48,
+    SC_Up = 0xE048,
+    SC_Keypad9 = 0x49,
+    SC_PageUp = 0xE049,
+    SC_KeypadMinus = 0x4A,
+    SC_Keypad4 = 0x4B,
+    SC_Left = 0xE04B,
+    SC_Keypad5 = 0x4C,
+    SC_Keypad6 = 0x4D,
+    SC_Right = 0xE04D,
+    SC_KeypadPlus = 0x4E,
+    SC_Keypad1 = 0x4F,
+    SC_End = 0xE04F,
+    SC_Keypad2 = 0x50,
+    SC_Down = 0xE050,
+    SC_Keypad3 = 0x51,
+    SC_PageDown = 0xE051,
+    SC_Keypad0 = 0x52,
+    SC_Insert = 0xE052,
+    SC_KeypadPeriod = 0x53,
+    SC_Delete = 0xE053,
+    SC_SysReq = 0x54, // Emitted by Alt + PrtScrn
+    SC_F11 = 0x57,
+    SC_F12 = 0x58,
+    SC_LeftWindows = 0xE05B,
+    SC_RightWindows = 0xE05C,
+    SC_Menu = 0xE05D
+} Scancode;
+
+typedef struct KeyEvent
+{
+    int Pressed;
+    Keycode Key;
+    Scancode Scan;
+} KeyEvent;
+
+typedef struct CharEvent
+{
+    uint16_t CharCode;
+} CharEvent;
+
+typedef struct Event
+{
+    EventType Type;
+
+    union
+    {
+        MouseMoveEvent Move;
+        MouseButtonEvent Button;
+        MouseScrollEvent Scroll;
+        KeyEvent Key;
+        CharEvent Char;
+    };
+} Event;
+
+// returns true and fills the event as long as there are events left on the queue
+int PollEvents(Event* ev);
+
 // Windows implementation
 #ifdef _WIN32
 
@@ -5284,6 +5579,35 @@ void InitDefaultWindowConfig(WindowConfig* pConfig)
 #define PROC_CAST
 #endif
 
+static const int kEventQSize = 1024;
+static Event g_EventQ[kEventQSize];
+static int g_EventQ_NextRead = 0;
+static int g_EventQ_NextWrite = 0;
+
+static void PushEvent(Event* ev)
+{
+    g_EventQ[g_EventQ_NextWrite] = *ev;
+    g_EventQ_NextWrite = (g_EventQ_NextWrite + 1) % kEventQSize;
+    
+    // if writing catches up to reading, shove reading forward
+    if (g_EventQ_NextWrite == g_EventQ_NextRead)
+    {
+        g_EventQ_NextRead = (g_EventQ_NextRead + 1) % kEventQSize;
+    }
+}
+
+int PollEvents(Event* ev)
+{
+    if (g_EventQ_NextRead == g_EventQ_NextWrite)
+    {
+        return 0;
+    }
+
+    *ev = g_EventQ[g_EventQ_NextRead];
+    g_EventQ_NextRead = (g_EventQ_NextRead + 1) % kEventQSize;
+    return 1;
+}
+
 #ifdef _WIN32
 
 HMODULE g_hModuleOpenGL32;
@@ -5396,6 +5720,118 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         int height = HIWORD(lParam);
         ResizeGL(width, height);
         return 0;
+    }
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    {
+        Event ev;
+        ev.Type = ET_MouseButton;
+        ev.Button.X = LOWORD(lParam);
+        ev.Button.Y = HIWORD(lParam);
+        ev.Button.Pressed = message == WM_LBUTTONDOWN;
+        ev.Button.Button = MB_Left;
+        PushEvent(&ev);
+        return 0;
+    }
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+    {
+        Event ev;
+        ev.Type = ET_MouseButton;
+        ev.Button.X = LOWORD(lParam);
+        ev.Button.Y = HIWORD(lParam);
+        ev.Button.Pressed = message == WM_RBUTTONDOWN;
+        ev.Button.Button = MB_Right;
+        PushEvent(&ev);
+        return 0;
+    }
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    {
+        Event ev;
+        ev.Type = ET_MouseButton;
+        ev.Button.X = LOWORD(lParam);
+        ev.Button.Y = HIWORD(lParam);
+        ev.Button.Pressed = message == WM_MBUTTONDOWN;
+        ev.Button.Button = MB_Middle;
+        PushEvent(&ev);
+        return 0;
+    }
+    case WM_MOUSEMOVE:
+    {
+        Event ev;
+        ev.Type = ET_MouseMove;
+        ev.Move.X = LOWORD(lParam);
+        ev.Move.Y = HIWORD(lParam);
+        PushEvent(&ev);
+        return 0;
+    }
+    case WM_MOUSEWHEEL:
+    {
+        Event ev;
+        ev.Type = ET_MouseScroll;
+        ev.Scroll.X = LOWORD(lParam);
+        ev.Scroll.Y = HIWORD(lParam);
+        ev.Scroll.ScrollDelta = HIWORD(wParam) / WHEEL_DELTA;
+        PushEvent(&ev);
+        return 0;
+    }
+    case WM_INPUT:
+    {
+        char buffer[sizeof(RAWINPUT)] = {};
+        UINT size = sizeof(RAWINPUT);
+        AssertWin32((UINT)-1 != GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer, &size, sizeof(RAWINPUTHEADER)));
+
+        RAWINPUT* raw = (RAWINPUT*)buffer;
+        if (raw->header.dwType == RIM_TYPEKEYBOARD)
+        {
+            const RAWKEYBOARD* rawKB = &raw->data.keyboard;
+
+            if (rawKB->VKey == 255)
+            {
+                // discard "fake keys" which are part of an escaped sequence
+                return 0;
+            }
+
+            Event ev;
+            ev.Type = ET_Key;
+            ev.Key.Pressed = !(rawKB->Flags & RI_KEY_BREAK);
+
+            ev.Key.Key = (Keycode)rawKB->VKey;
+
+            USHORT scancode = rawKB->MakeCode;
+            if (rawKB->Flags & RI_KEY_E0)
+            {
+                scancode |= 0xE000;
+            }
+            if (rawKB->Flags & RI_KEY_E1)
+            {
+                scancode |= 0xE100;
+            }
+            ev.Key.Scan = (Scancode)scancode;
+
+            PushEvent(&ev);
+            return 0;
+        }
+    }
+    case WM_CHAR:
+    {
+        Event ev;
+        ev.Type = ET_Char;
+        ev.Char.CharCode = (uint16_t) wParam;
+        PushEvent(&ev);
+        return 0;
+    }
+    case WM_SYSCOMMAND:
+    {
+        if (wParam == SC_KEYMENU)
+        {
+            return 0;
+        }
+        else
+        {
+            return DefWindowProc(hWnd, message, wParam, lParam);
+        }
     }
     default:
         return DefWindowProcW(hWnd, message, wParam, lParam);
@@ -5595,14 +6031,10 @@ void InitJGL(const WindowConfig& config)
         hWnd = hWnd_fancy;
     }
 
-    wchar_t* wtitle = (wchar_t*)malloc(sizeof(wchar_t) * (strlen(config.WindowTitle) + 1));
-    int i;
-    for (i = 0; config.WindowTitle[i] != '\0'; i++)
-    {
-        wtitle[i] = config.WindowTitle[i];
-    }
-    wtitle[i] = '\0';
-
+    int titleBufferSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, config.WindowTitle, -1, NULL, 0);
+    AssertWin32(titleBufferSize != 0);
+    WCHAR* wtitle = (WCHAR*)malloc(sizeof(WCHAR) * titleBufferSize);
+    AssertWin32(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, config.WindowTitle, -1, wtitle, titleBufferSize));
     AssertWin32(SetWindowTextW(hWnd, wtitle));
     free(wtitle);
 
@@ -5619,6 +6051,24 @@ int main()
     
     InitJGL(config);
     InitJGLProcs();
+
+#ifndef HID_USAGE_PAGE_GENERIC
+#define HID_USAGE_PAGE_GENERIC         ((USHORT) 0x01)
+#endif
+#ifndef HID_USAGE_GENERIC_MOUSE
+#define HID_USAGE_GENERIC_MOUSE        ((USHORT) 0x02)
+#endif
+#ifndef HID_USAGE_GENERIC_KEYBOARD
+#define HID_USAGE_GENERIC_KEYBOARD     ((USHORT) 0x06)
+#endif
+
+    // Init raw input
+    RAWINPUTDEVICE rids[1];
+    rids[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+    rids[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+    rids[0].dwFlags = 0;
+    rids[0].hwndTarget = g_hWnd;
+    AssertWin32(RegisterRawInputDevices(rids, sizeof(rids) / sizeof(*rids), sizeof(*rids)));
 
     // Initial resizing of the window
     DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX;
