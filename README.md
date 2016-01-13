@@ -205,3 +205,9 @@ What follows is a sample program making use of the extensions.
             glDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, (void*)drawOffset);
         }
     }
+    
+With [sponza](http://graphics.cs.williams.edu/data/meshes.xml) as input, the following scene is drawn:
+
+<p align="center">
+    <img src="http://i.imgur.com/xVIICph.jpg" alt="sponza image"/>
+</p>
