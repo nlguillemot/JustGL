@@ -26,6 +26,10 @@
 #include "justgl_fs.h"
 #include "justgl_image.h"
 
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 #include <cstdio>
 #include <cassert>
 #include <cerrno>
@@ -1406,6 +1410,13 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     return false;
                 }
 
+#ifndef NDEBUG
+                if (img.Width >= 1024 || img.Height >= 1024)
+                {
+                    printf("Warning: big texture (%dx%d: %s)\n", img.Width, img.Height, filename.c_str());
+                }
+#endif
+
                 int numLevels = (int)std::floor(std::log2(std::max(img.Width, img.Height))) + 1;
 
                 GLenum sizedFormat;
@@ -1496,6 +1507,13 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         errorMessage = "ReadImageFromFile failed";
                         return false;
                     }
+
+#ifndef NDEBUG
+                    if (img.Width >= 1024 || img.Height >= 1024)
+                    {
+                        printf("Warning: big texture (%dx%d: %s)\n", img.Width, img.Height, filename->c_str());
+                    }
+#endif
 
                     if (faceWidth == -1)
                     {

@@ -4,6 +4,7 @@
 *.suo
 x64/Debug
 x64/Release
+x64/ReleaseWithDebInfo
 
 # stuff for my testing purposes
 *.sln

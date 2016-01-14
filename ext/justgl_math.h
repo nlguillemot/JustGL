@@ -28,6 +28,18 @@
 #include <cmath>
 
 template<class T>
+inline T degtorad(T deg)
+{
+    return deg * T(3.14159265359) / T(180);
+}
+
+template<class T>
+inline T radtodeg(T rad)
+{
+    return rad / T(3.14159265359) * T(180);
+}
+
+template<class T>
 struct vec2_t
 {
     union
@@ -127,6 +139,18 @@ struct vec2_t
         return *this;
     }
 };
+
+template<class T>
+inline vec2_t<T> operator-(const vec2_t<T>& v)
+{
+    return vec2_t<T>(-v.x, -v.y);
+}
+
+template<class T>
+inline vec2_t<T> operator+(const vec2_t<T>& v)
+{
+    return vec2_t<T>(+v.x, +v.y);
+}
 
 template<class T>
 inline vec2_t<T> operator+(vec2_t<T> a, const vec2_t<T>& b)
@@ -320,6 +344,18 @@ struct vec3_t
         return *this;
     }
 };
+
+template<class T>
+inline vec3_t<T> operator-(const vec3_t<T>& v)
+{
+    return vec3_t<T>(-v.x, -v.y, -v.z);
+}
+
+template<class T>
+inline vec3_t<T> operator+(const vec3_t<T>& v)
+{
+    return vec3_t<T>(+v.x, +v.y, +v.z);
+}
 
 template<class T>
 inline vec3_t<T> operator+(vec3_t<T> a, const vec3_t<T>& b)
@@ -560,6 +596,18 @@ struct vec4_t
 };
 
 template<class T>
+inline vec4_t<T> operator-(const vec4_t<T>& v)
+{
+    return vec4_t<T>(-v.x, -v.y, -v.z, -v.w);
+}
+
+template<class T>
+inline vec4_t<T> operator+(const vec4_t<T>& v)
+{
+    return vec4_t<T>(+v.x, +v.y, +v.z, +v.w);
+}
+
+template<class T>
 inline vec4_t<T> operator+(vec4_t<T> a, const vec4_t<T>& b)
 {
     a += b;
@@ -735,6 +783,20 @@ inline mat2_t<T> operator*(mat2_t<T> a, const mat2_t<T>& b)
 }
 
 template<class T>
+inline vec2_t<T> operator*(const mat2_t<T>& m, const vec2_t<T>& v)
+{
+    return vec2_t<T>(
+        dot(vec2_t<T>(m.e[0], m.e[2]), v),
+        dot(vec2_t<T>(m.e[1], m.e[3]), v));
+}
+
+template<class T>
+inline vec2_t<T> operator*(const vec2_t<T>& a, const vec2_t<T>& m)
+{
+    return vec2_t<T>(dot(a, m[0]), dot(a, m[1]));
+}
+
+template<class T>
 inline mat2_t<T> transpose(const mat2_t<T>& m)
 {
     const T* e = m.e;
@@ -864,6 +926,27 @@ struct mat3_t
         }
         return *this;
     }
+
+    static mat3_t axisRotationDegrees(T degrees, const vec3_t<T>& axis)
+    {
+        T th = degtorad(degrees);
+        T c = cos(th);
+        T s = sin(th);
+
+        return mat3_t(
+            // column 1
+            c + (T(1) - c) * axis.x * axis.x, 
+            (T(1) - c) * axis.x * axis.y + s * axis.z,
+            (T(1) - c) * axis.x * axis.z - s * axis.y,
+            // column 2
+            (T(1) - c) * axis.x * axis.y - s * axis.z,
+            c + (T(1) - c) * axis.y * axis.y,
+            (T(1) - c) * axis.y * axis.z + s * axis.x,
+            // column 3
+            (T(1) - c) * axis.x * axis.z + s * axis.y,
+            (T(1) - c) * axis.y * axis.z - s * axis.x,
+            c + (T(1) - c) * axis.z * axis.z);
+    }
 };
 
 template<class T>
@@ -871,6 +954,21 @@ inline mat3_t<T> operator*(mat3_t<T> a, const mat3_t<T>& b)
 {
     a *= b;
     return a;
+}
+
+template<class T>
+inline vec3_t<T> operator*(const mat3_t<T>& m, const vec3_t<T>& v)
+{
+    return vec3_t<T>(
+        dot(vec3_t<T>(m.e[0], m.e[3], m.e[6]), v),
+        dot(vec3_t<T>(m.e[1], m.e[4], m.e[7]), v),
+        dot(vec3_t<T>(m.e[2], m.e[5], m.e[8]), v));
+}
+
+template<class T>
+inline vec3_t<T> operator*(const vec3_t<T>& a, const mat3_t<T>& m)
+{
+    return vec3_t<T>(dot(a, m[0]), dot(a, m[1]), dot(a, m[2]));
 }
 
 template<class T>
@@ -1086,8 +1184,21 @@ struct mat4_t
     static mat4_t lookAt(const vec3_t<T>& eye, const vec3_t<T>& center, const vec3_t<T>& up)
     {
         vec3_t<T> f = normalize(center - eye);
-        vec3_t<T> s = cross(f, normalize(up));
-        vec3_t<T> u = cross(normalize(s), f);
+        vec3_t<T> s = normalize(cross(f, normalize(up)));
+        vec3_t<T> u = normalize(cross(s, f));
+        vec3_t<T> t(-dot(s, eye), -dot(u, eye), dot(f, eye));
+        return mat4_t(
+            s[0],  u[0], -f[0], T(0),
+            s[1],  u[1], -f[1], T(0),
+            s[2],  u[2], -f[2], T(0),
+            t[0],  t[1],  t[2], T(1));
+    }
+
+    static mat4_t lookTo(const vec3_t<T>& eye, const vec3_t<T>& look, const vec3_t<T>& up)
+    {
+        vec3_t<T> f = normalize(look);
+        vec3_t<T> s = normalize(cross(f, normalize(up)));
+        vec3_t<T> u = normalize(cross(s, f));
         vec3_t<T> t(-dot(s, eye), -dot(u, eye), dot(f, eye));
         return mat4_t(
             s[0],  u[0], -f[0], T(0),
@@ -1105,6 +1216,23 @@ inline mat4_t<T> operator*(mat4_t<T> a, const mat4_t<T>& b)
 }
 
 template<class T>
+inline vec4_t<T> operator*(const mat4_t<T>& m, const vec4_t<T>& v)
+{
+    return vec4_t<T>(
+        dot(vec4_t<T>(m.e[0], m.e[4], m.e[8],  m.e[12]), v),
+        dot(vec4_t<T>(m.e[1], m.e[5], m.e[9],  m.e[13]), v),
+        dot(vec4_t<T>(m.e[2], m.e[6], m.e[10], m.e[14]), v),
+        dot(vec4_t<T>(m.e[3], m.e[7], m.e[11], m.e[15]), v));
+}
+
+template<class T>
+inline vec4_t<T> operator*(const vec4_t<T>& a, const mat4_t<T>& m)
+{
+    return vec4_t<T>(
+        dot(a, m[0]), dot(a, m[1]), dot(a, m[2]), dot(a, m[3]));
+}
+
+template<class T>
 inline mat4_t<T> transpose(const mat4_t<T>& m)
 {
     const T* e = m.e;
@@ -1119,26 +1247,29 @@ using vec2 = vec2_t<float>;
 using dvec2 = vec2_t<double>;
 using ivec2 = vec2_t<int>;
 using uvec2 = vec2_t<unsigned int>;
+using bvec2 = vec2_t<bool>;
 
 using vec3 = vec3_t<float>;
 using dvec3 = vec3_t<double>;
 using ivec3 = vec3_t<int>;
 using uvec3 = vec3_t<unsigned int>;
+using bvec3 = vec3_t<bool>;
 
 using vec4 = vec4_t<float>;
 using dvec4 = vec4_t<double>;
 using ivec4 = vec4_t<int>;
 using uvec4 = vec4_t<unsigned int>;
+using bvec4 = vec4_t<bool>;
 
-using mat2 = mat4_t<float>;
-using dmat2 = mat4_t<double>;
-using imat2 = mat4_t<int>;
-using umat2 = mat4_t<unsigned int>;
+using mat2 = mat2_t<float>;
+using dmat2 = mat2_t<double>;
+using imat2 = mat2_t<int>;
+using umat2 = mat2_t<unsigned int>;
 
-using mat3 = mat4_t<float>;
-using dmat3 = mat4_t<double>;
-using imat3 = mat4_t<int>;
-using umat3 = mat4_t<unsigned int>;
+using mat3 = mat3_t<float>;
+using dmat3 = mat3_t<double>;
+using imat3 = mat3_t<int>;
+using umat3 = mat3_t<unsigned int>;
 
 using mat4 = mat4_t<float>;
 using dmat4 = mat4_t<double>;
