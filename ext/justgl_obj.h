@@ -190,6 +190,13 @@ public:
     // These vectors are associated 1-1 with the draw calls
     std::vector<std::string> GroupNames;
     std::vector<int> GroupMaterialIDs;
+
+    // center of the polygon group (SoA)
+    std::vector<float> CenterXs;
+    std::vector<float> CenterYs;
+    std::vector<float> CenterZs;
+    // size of the polygon group's bounding sphere
+    std::vector<float> Radii;
 };
 
 inline void swap(MeshObject& a, MeshObject& b)

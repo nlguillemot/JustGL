@@ -5836,6 +5836,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         ev.Type = ET_MouseMove;
         ev.Move.X = (int)(short)LOWORD(lParam);
         ev.Move.Y = (int)(short)HIWORD(lParam);
+        printf("WM_MOUSEMOVE: %d %d\n", ev.Move.X, ev.Move.Y);
         PushEvent(&ev);
         return 0;
     }

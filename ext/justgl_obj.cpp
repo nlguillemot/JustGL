@@ -673,28 +673,15 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     int texCoordCardinality = -1;
     int normalCardinality = -1;
 
-    struct VertexCacheEntry
-    {
-        int v, vt, vn;
-        GLuint idx;
-    };
-
-    static const unsigned int kCacheSize = 1024;
-    static_assert((kCacheSize & (kCacheSize - 1)) == 0, "assuming pow2");
-    VertexCacheEntry cache[kCacheSize];
+    // this could probably be improved
+    std::map<std::tuple<int, int, int>, GLuint> cache;
 
     auto emitVertex = [&](int vi, int vti, int vni)
     {
-        int hashed =
-            (vi  & (kCacheSize - 1)) ^
-            (vti & (kCacheSize - 1)) ^
-            (vni & (kCacheSize - 1));
-
-        if (cache[hashed].v == vi &&
-            cache[hashed].vt == vti &&
-            cache[hashed].vn == vni)
+        auto found = cache.find(std::make_tuple(vi, vti, vni));
+        if (found != end(cache))
         {
-            idxbuf.push_back(cache[hashed].idx);
+            idxbuf.push_back(found->second);
         }
         else
         {
@@ -723,11 +710,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
             }
 
             idxbuf.push_back((GLuint)posbuf.size() / positionCardinality - 1);
-            
-            cache[hashed].v = vi;
-            cache[hashed].vt = vti;
-            cache[hashed].vn = vni;
-            cache[hashed].idx = idxbuf.back();
+
+            cache.insert(std::make_pair(std::make_tuple(vi, vti, vni), idxbuf.back()));
         }
     };
 
@@ -735,10 +719,15 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     std::vector<std::string> groupNames;
     std::vector<std::string> materialNames;
 
+    std::vector<float> centerXs;
+    std::vector<float> centerYs;
+    std::vector<float> centerZs;
+    std::vector<float> radii;
+
     std::string currGroupName;
     std::string currMaterialName;
 
-    auto emitGroup = [&drawbuf, &posbuf, &idxbuf, &groupNames, &currGroupName, &materialNames, &currMaterialName]()
+    auto emitGroup = [&]()
     {
         GLDrawElementsIndirectCommand cmd;
         if (drawbuf.empty())
@@ -763,6 +752,54 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
             groupNames.push_back(currGroupName);
             materialNames.push_back(currMaterialName);
             drawbuf.push_back(cmd);
+
+            // debug iterators suck
+            const GLuint* ibuf = idxbuf.data();
+            const float* pbuf = posbuf.data();
+
+            double centerX = 0.0, centerY = 0.0, centerZ = 0.0;
+            for (size_t idxIdx = cmd.firstIndex; idxIdx < cmd.firstIndex + cmd.count; idxIdx += 3)
+            {
+                double triCenterX = 0.0, triCenterY = 0.0, triCenterZ = 0.0;
+                for (size_t triIdxIdx = idxIdx; triIdxIdx < idxIdx + 3; triIdxIdx++)
+                {
+                    GLuint idx = ibuf[triIdxIdx];
+                    triCenterX += pbuf[idx * positionCardinality + 0];
+                    triCenterY += pbuf[idx * positionCardinality + 1];
+                    triCenterZ += pbuf[idx * positionCardinality + 2];
+                }
+                triCenterX /= 3;
+                triCenterY /= 3;
+                triCenterZ /= 3;
+                centerX += triCenterX;
+                centerY += triCenterY;
+                centerZ += triCenterZ;
+            }
+            
+            GLuint triCount = cmd.count / 3;
+            centerX /= triCount;
+            centerY /= triCount;
+            centerZ /= triCount;
+
+            float maxDistanceSquared = 0.0f;
+            for (size_t idxIdx = cmd.firstIndex; idxIdx < cmd.firstIndex + cmd.count; idxIdx++)
+            {
+                GLuint idx = ibuf[idxIdx];
+                float x, y, z;
+                x = pbuf[idx * positionCardinality + 0];
+                y = pbuf[idx * positionCardinality + 1];
+                z = pbuf[idx * positionCardinality + 2];
+                float dx = x - (float) centerX;
+                float dy = y - (float) centerY;
+                float dz = z - (float) centerZ;
+                float dSq = dx * dx + dy * dy + dz * dz;
+                maxDistanceSquared = std::max(maxDistanceSquared, dSq);
+            }
+
+            centerXs.push_back((float)centerX);
+            centerYs.push_back((float)centerY);
+            centerZs.push_back((float)centerZ);
+            radii.push_back(std::sqrt(maxDistanceSquared));
         }
     };
 
@@ -1257,7 +1294,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
     }
 
-    // emit if this is not the first (and empty) group
+    // emit the leftover group
     emitGroup();
 
     if (pMesh)
@@ -1268,6 +1305,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         pMesh->CPUIndexBuffer = std::move(idxbuf);
         pMesh->GroupNames = std::move(groupNames);
         pMesh->CPUIndirectDrawBuffer = std::move(drawbuf);
+        pMesh->CenterXs = std::move(centerXs);
+        pMesh->CenterYs = std::move(centerYs);
+        pMesh->CenterZs = std::move(centerZs);
+        pMesh->Radii = std::move(radii);
 
         glDeleteBuffers(MeshObjectVertexBindingIndex::Count, &pMesh->VertexBuffers[0]);
         glGenBuffers(MeshObjectVertexBindingIndex::Count, &pMesh->VertexBuffers[0]);

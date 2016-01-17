@@ -26,9 +26,11 @@
 #define JUSTGL_DEBUG_H
 
 #include "justgl.h"
+#include "justgl_math.h"
 
 #include <sstream>
 #include <string>
+#include <vector>
 
 inline const char* DebugSourceToString(GLenum source)
 {
@@ -70,7 +72,7 @@ inline const char* DebugSeverityToString(GLenum severity)
     }
 }
 
-std::string FormatGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message)
+inline std::string FormatGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message)
 {
     std::stringstream ss;
     ss << "OpenGL debug callback: {\n"
@@ -81,6 +83,59 @@ std::string FormatGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum 
        << "\tmessage = " << std::string(message, message + length) << "\n"
        << "}";
     return ss.str();
+}
+
+struct DebugVertex
+{
+    vec3 Position;
+    vec4 Color;
+};
+
+class DebugGeometry;
+void swap(DebugGeometry& a, DebugGeometry& b);
+
+class DebugGeometry
+{
+public:
+    DebugGeometry()
+        : VertexArray(0)
+        , VertexBuffer(0)
+    {
+    }
+    
+    ~DebugGeometry()
+    {
+        glDeleteVertexArrays(1, &VertexArray);
+        glDeleteBuffers(1, &VertexBuffer);
+    }
+
+    void Reset();
+
+    void AddLine(const DebugVertex& start, const DebugVertex& end);
+    void AddTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c);
+    void AddWireTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c);
+
+    // lazily compiles when you ask for it
+    static GLuint GetDebugShader();
+
+    std::vector<DebugVertex> VertexData;
+    std::vector<GLDrawArraysIndirectCommand> CPUIndirectDrawBuffer;
+    std::vector<GLenum> DrawPrimitiveTypes;
+
+    GLuint VertexArray;
+    GLuint VertexBuffer;
+};
+
+inline void swap(DebugGeometry& a, DebugGeometry& b)
+{
+    using std::swap;
+    
+    swap(a.VertexData, b.VertexData);
+    swap(a.CPUIndirectDrawBuffer, b.CPUIndirectDrawBuffer);
+    swap(a.DrawPrimitiveTypes, b.DrawPrimitiveTypes);
+
+    swap(a.VertexArray, b.VertexArray);
+    swap(a.VertexBuffer, b.VertexBuffer);
 }
 
 #endif // JUSTGL_DEBUG_H

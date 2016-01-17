@@ -88,4 +88,7 @@ public:
     vec3 UpDirection = vec3(0.0f, 1.0f, 0.0f);
 };
 
+void NormalizePlaneEquation(float plane[4]);
+void FrustumFromModelViewProjection(const float* mvp, float frustum[6][4]);
+
 #endif // JUSTGL_CAMERA_H

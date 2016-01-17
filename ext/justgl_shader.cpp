@@ -194,6 +194,8 @@ bool UpdateShaders(std::set<Shader*>* pUpdatedShaders, std::set<ShaderProgram*>*
                 continue;
             }
 
+            // static_assert(false, "TODO: Build list of strings with proper IDs to show filename with error");
+            // static_assert(false, "TODO: Build list of include dependencies to properly recompile when they change");
             const char* data = source.c_str();
             GLint length = (GLint)source.length();
 

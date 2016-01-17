@@ -111,9 +111,11 @@ bool FlythroughCamera::HandleEvent(const Event* ev)
 
         if (ev->Move.X != clientWidth / 2 || ev->Move.Y != clientHeight / 2)
         {
+            printf("X: %d, Y: %d\n", ev->Move.X, ev->Move.Y);
             PendingYawTicks -= (ev->Move.X - clientWidth / 2);
             PendingPitchTicks -= (ev->Move.Y - clientHeight / 2);
             SetMousePosition(clientWidth / 2, clientHeight / 2);
+            printf("SetMousePosition: %d, %d\n", clientWidth / 2, clientHeight / 2);
             return true;
         }
     }
@@ -194,4 +196,57 @@ void FlythroughCamera::Update(float dt_Sec)
 mat4 FlythroughCamera::GetWorldView() const
 {
     return mat4::lookTo(EyePosition, LookDirection, UpDirection);
+}
+
+void NormalizePlaneEquation(float plane[4])
+{
+    float mag = sqrt(
+        plane[0] * plane[0] +
+        plane[1] * plane[1] +
+        plane[2] * plane[2]);
+
+    plane[0] = plane[0] / mag;
+    plane[1] = plane[1] / mag;
+    plane[2] = plane[2] / mag;
+    plane[3] = plane[3] / mag;
+}
+
+void FrustumFromModelViewProjection(const float* mvp, float frustum[6][4])
+{
+    float(&p)[4][4] = (float(&)[4][4])*mvp;
+
+    frustum[0][0] = p[0][3] + p[0][0];
+    frustum[0][1] = p[1][3] + p[1][0];
+    frustum[0][2] = p[2][3] + p[2][0];
+    frustum[0][3] = p[3][3] + p[3][0];
+
+    frustum[1][0] = p[0][3] - p[0][0];
+    frustum[1][1] = p[1][3] - p[1][0];
+    frustum[1][2] = p[2][3] - p[2][0];
+    frustum[1][3] = p[3][3] - p[3][0];
+
+    frustum[2][0] = p[0][3] + p[0][1];
+    frustum[2][1] = p[1][3] + p[1][1];
+    frustum[2][2] = p[2][3] + p[2][1];
+    frustum[2][3] = p[3][3] + p[3][1];
+
+    frustum[3][0] = p[0][3] - p[0][1];
+    frustum[3][1] = p[1][3] - p[1][1];
+    frustum[3][2] = p[2][3] - p[2][1];
+    frustum[3][3] = p[3][3] - p[3][1];
+
+    frustum[4][0] = p[0][3] + p[0][2];
+    frustum[4][1] = p[1][3] + p[1][2];
+    frustum[4][2] = p[2][3] + p[2][2];
+    frustum[4][3] = p[3][3] + p[3][2];
+
+    frustum[5][0] = p[0][3] - p[0][2];
+    frustum[5][1] = p[1][3] - p[1][2];
+    frustum[5][2] = p[2][3] - p[2][2];
+    frustum[5][3] = p[3][3] - p[3][2];
+
+    for (int i = 0; i < 6; i++)
+    {
+        NormalizePlaneEquation(frustum[i]);
+    }
 }
