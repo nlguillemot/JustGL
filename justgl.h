@@ -5650,6 +5650,12 @@ int g_isMouseCursorShown = 1;
 int g_isMouseClipped = 0;
 int g_isMouseCurrentlyInClientArea = 0;
 
+int g_isFullscreen = 0;
+int g_savedWindowWidth = 0;
+int g_savedWindowHeight = 0;
+int g_savedWindowX = 0;
+int g_savedWindowY = 0;
+
 typedef HGLRC(WINAPI * PFNWGLCREATECONTEXT) (HDC hdc);
 typedef BOOL(WINAPI * PFNWGLDELETECONTEXT) (HGLRC hglrc);
 typedef BOOL(WINAPI * PFNWGLMAKECURRENT) (HDC hdc, HGLRC hglrc);
@@ -5928,15 +5934,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         int width = LOWORD(lParam);
         int height = HIWORD(lParam);
-        printf("WM_SIZE(%d,%d)\n", width, height);
         ResizeGL(width, height);
         return 0;
     }
     case WM_DPICHANGED:
     {
-        int newDPI = LOWORD(wParam);
-        printf("WM_DPICHANGED(%d)\n", newDPI);
-
         RECT* prcNewWindow = (RECT*)lParam;
         AssertWin32(SetWindowPos(g_hWnd, NULL,
             prcNewWindow->left, prcNewWindow->top,
@@ -6046,10 +6048,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         PushEvent(&ev);
         return 0;
     }
+    case WM_SYSKEYDOWN:
+    {
+        if (wParam == VK_RETURN)
+        {
+            // toggle fullscreen
+            DWORD dwStyle = 0;
+            int x, y, w, h;
+
+            if (g_isFullscreen)
+            {
+                dwStyle = WS_VISIBLE | WS_OVERLAPPEDWINDOW;
+                x = g_savedWindowX;
+                y = g_savedWindowY;
+                w = g_savedWindowWidth;
+                h = g_savedWindowHeight;
+            }
+            else
+            {
+                RECT r;
+                AssertWin32(GetWindowRect(g_hWnd, &r));
+                g_savedWindowX = r.left;
+                g_savedWindowY = r.top;
+                g_savedWindowWidth = r.right - r.left;
+                g_savedWindowHeight = r.bottom - r.top;
+
+                dwStyle = WS_VISIBLE | WS_POPUP;
+                
+                HMONITOR hMonitor = MonitorFromWindow(g_hWnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO mi;
+                mi.cbSize = sizeof(mi);
+                AssertWin32(GetMonitorInfo(hMonitor, &mi));
+                x = mi.rcMonitor.left;
+                y = mi.rcMonitor.top;
+                w = mi.rcMonitor.right - mi.rcMonitor.left;
+                h = mi.rcMonitor.bottom - mi.rcMonitor.top;
+            }
+
+            SetLastError(0);
+            if (SetWindowLong(g_hWnd, GWL_STYLE, dwStyle) == 0)
+            {
+                AssertWin32(GetLastError() != 0);
+            }
+
+            SetWindowPos(g_hWnd, NULL, x, y, w, h, SWP_NOZORDER | SWP_FRAMECHANGED);
+            g_isFullscreen = !g_isFullscreen;
+            return 0;
+        }
+        else
+        {
+            return DefWindowProcW(hWnd, message, wParam, lParam);
+        }
+    }
     case WM_SYSCOMMAND:
     {
         if (wParam == SC_KEYMENU)
         {
+            // alt key freezes the app...
             return 0;
         }
         else
