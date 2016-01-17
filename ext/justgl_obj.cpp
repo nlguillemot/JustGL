@@ -574,6 +574,13 @@ bool ParseMtl(const char* filename, const char* mtlpath, std::map<std::string, M
             }
         }
 
+        acceptHS();
+        if (i < size && (mem[i] != '\n' && mem[i] != '\r'))
+        {
+            // expected end of line
+            return false;
+        }
+
         while (i < size && (mem[i] == '\n' || mem[i] == '\r'))
         {
             i++;

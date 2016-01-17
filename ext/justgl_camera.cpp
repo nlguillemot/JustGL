@@ -34,11 +34,15 @@ void FlythroughCamera::Activate()
         return;
     }
 
-    ShowMouseCursor(0);
+        ShowMouseCursor(0);
+        ClipMouseCursorToWindow(1);
 
-    int clientWidth, clientHeight;
-    GetClientAreaSize(&clientWidth, &clientHeight);
-    SetMousePosition(clientWidth / 2, clientHeight / 2);
+    if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
+    {
+        int clientWidth, clientHeight;
+        GetClientAreaSize(&clientWidth, &clientHeight);
+        SetMousePosition(clientWidth / 2, clientHeight / 2);
+    }
 
     Activated = true;
 }
@@ -54,6 +58,7 @@ void FlythroughCamera::Deactivate()
     GetClientAreaSize(&clientWidth, &clientHeight);
     SetMousePosition(clientWidth / 2, clientHeight / 2);
     
+    ClipMouseCursorToWindow(0);
     ShowMouseCursor(1);
     
     Activated = false;
@@ -106,17 +111,22 @@ bool FlythroughCamera::HandleEvent(const Event* ev)
     }
     else if (ev->Type == ET_MouseMove)
     {
-        int clientWidth, clientHeight;
-        GetClientAreaSize(&clientWidth, &clientHeight);
-
-        if (ev->Move.X != clientWidth / 2 || ev->Move.Y != clientHeight / 2)
+        if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
         {
-            printf("X: %d, Y: %d\n", ev->Move.X, ev->Move.Y);
-            PendingYawTicks -= (ev->Move.X - clientWidth / 2);
-            PendingPitchTicks -= (ev->Move.Y - clientHeight / 2);
-            SetMousePosition(clientWidth / 2, clientHeight / 2);
-            printf("SetMousePosition: %d, %d\n", clientWidth / 2, clientHeight / 2);
-            return true;
+            int clientWidth, clientHeight;
+            GetClientAreaSize(&clientWidth, &clientHeight);
+
+            if (ev->Move.X != clientWidth / 2 || ev->Move.Y != clientHeight / 2)
+            {
+                if (!IgnoreNextMove)
+                {
+                    PendingYawTicks -= (ev->Move.X - clientWidth / 2);
+                    PendingPitchTicks -= (ev->Move.Y - clientHeight / 2);
+                }
+                SetMousePosition(clientWidth / 2, clientHeight / 2);
+                IgnoreNextMove = false;
+                return true;
+            }
         }
     }
 
@@ -125,8 +135,9 @@ bool FlythroughCamera::HandleEvent(const Event* ev)
 
 void FlythroughCamera::Update(float dt_Sec)
 {
-    if (!Activated)
+    if (!Activated || !IsWindowCurrentlyActive() || !IsMouseCursorInsideClientArea())
     {
+        IgnoreNextMove = true;
         return;
     }
 

@@ -54,15 +54,21 @@ typedef struct WindowConfig
 void ConfigGL(WindowConfig* pConfig);
 void InitGL();
 void ResizeGL(int width, int height);
-void PaintGL();
+int PaintGL(); /* return 1 if you drew anything. This triggers a SwapBuffers(). */
 
 // Utility functions
 void* GetProcGL(const char* procname);
+
 uint64_t GetCurrentTicks();
 uint64_t GetTicksPerSecond();
+
 void GetMousePosition(int* x, int* y);
 void SetMousePosition(int x, int y);
 void ShowMouseCursor(int show);
+void ClipMouseCursorToWindow(int clip);
+
+int IsWindowCurrentlyActive();
+int IsMouseCursorInsideClientArea();
 void GetClientAreaSize(int* width, int *height);
 
 typedef enum EventType
@@ -5631,10 +5637,18 @@ int PollEvents(Event* ev)
 
 #ifdef _WIN32
 
+#include <ShellScalingApi.h>
+
+HMODULE g_hModuleShcore;
+
 HMODULE g_hModuleOpenGL32;
 HWND g_hWnd;
 HDC g_hDC;
 HGLRC g_hGLRC;
+
+int g_isMouseCursorShown = 1;
+int g_isMouseClipped = 0;
+int g_isMouseCurrentlyInClientArea = 0;
 
 typedef HGLRC(WINAPI * PFNWGLCREATECONTEXT) (HDC hdc);
 typedef BOOL(WINAPI * PFNWGLDELETECONTEXT) (HGLRC hglrc);
@@ -5655,7 +5669,7 @@ void AssertWin32(BOOL b)
 
     DWORD errorCode = GetLastError();
 
-    LPWSTR buffPtr;
+    LPWSTR buffPtr = NULL;
     DWORD bufferLength = FormatMessageW(
         FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&buffPtr, 0, NULL);
@@ -5679,7 +5693,41 @@ void AssertWin32(BOOL b)
         // do nothing
     }
 
-    AssertWin32(LocalFree(buffPtr) == NULL);
+    AssertWin32(HeapFree(GetProcessHeap(), NULL, buffPtr) == NULL);
+}
+
+void AssertHR(HRESULT hr)
+{
+    if (SUCCEEDED(hr))
+    {
+        return;
+    }
+
+    LPWSTR buffPtr = NULL;
+    DWORD bufferLength = FormatMessageW(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&buffPtr, 0, NULL);
+    AssertWin32(bufferLength != 0);
+
+    OutputDebugStringW(buffPtr);
+
+    int choice = MessageBoxW(g_hWnd, buffPtr, NULL, MB_ABORTRETRYIGNORE);
+    AssertWin32(choice != 0);
+
+    if (choice == IDABORT)
+    {
+        ExitProcess(-1);
+    }
+    else if (choice == IDRETRY)
+    {
+        DebugBreak();
+    }
+    else if (choice == IDIGNORE)
+    {
+        // do nothing
+    }
+
+    AssertWin32(HeapFree(GetProcessHeap(), NULL, buffPtr) == NULL);
 }
 
 void* GetProcGL(const char* procname)
@@ -5726,14 +5774,56 @@ void SetMousePosition(int x, int y)
 
 void ShowMouseCursor(int show)
 {
-    static int shown = 1;
-    if ((shown && show) || (!shown && !show))
+    if (show || (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea()))
     {
-        return;
+        static int shown = 1;
+
+        if ((shown && show) || (!shown && !show))
+        {
+            return;
+        }
+
+        ShowCursor(show);
+        shown = show;
     }
 
-    ShowCursor(show);
-    shown = show;
+    g_isMouseCursorShown = show;
+}
+
+void ClipMouseCursorToWindow(int clip)
+{
+    if (!clip || (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea()))
+    {
+        if (clip)
+        {
+            POINT p = { 0, 0 };
+            AssertWin32(ClientToScreen(g_hWnd, &p));
+            RECT clientRect;
+            AssertWin32(GetClientRect(g_hWnd, &clientRect));
+            RECT r;
+            r.left = p.x;
+            r.top = p.y;
+            r.right = p.x + clientRect.right;
+            r.bottom = p.y + clientRect.bottom;
+            AssertWin32(ClipCursor(&r));
+        }
+        else
+        {
+            AssertWin32(ClipCursor(NULL));
+        }
+    }
+    
+    g_isMouseClipped = clip;
+}
+
+int IsWindowCurrentlyActive()
+{
+    return GetActiveWindow() == g_hWnd;
+}
+
+int IsMouseCursorInsideClientArea()
+{
+    return g_isMouseCurrentlyInClientArea;
 }
 
 void GetClientAreaSize(int* width, int *height)
@@ -5787,11 +5877,72 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
     case WM_CLOSE:
         ExitProcess(0);
+    case WM_SETCURSOR:
+    {
+        if (LOWORD(lParam) == HTCLIENT)
+        {
+            g_isMouseCurrentlyInClientArea = 1;
+        }
+        else
+        {
+            g_isMouseCurrentlyInClientArea = 0;
+        }
+
+        if (IsWindowCurrentlyActive())
+        {
+            if (g_isMouseCurrentlyInClientArea)
+            {
+                if (g_isMouseClipped)
+                {
+                    ClipMouseCursorToWindow(1);
+                }
+                
+                ShowMouseCursor(g_isMouseCursorShown);
+            }
+            else
+            {
+                if (!g_isMouseCursorShown)
+                {
+                    ShowMouseCursor(1);
+                    g_isMouseCursorShown = 0;
+                }
+            }
+        }
+        else
+        {
+            if (g_isMouseClipped)
+            {
+                ClipMouseCursorToWindow(0);
+                g_isMouseClipped = 1;
+            }
+
+            if (!g_isMouseCursorShown)
+            {
+                ShowMouseCursor(1);
+                g_isMouseCursorShown = 0;
+            }
+        }
+        return DefWindowProcW(hWnd, message, wParam, lParam);
+    }
     case WM_SIZE:
     {
         int width = LOWORD(lParam);
         int height = HIWORD(lParam);
+        printf("WM_SIZE(%d,%d)\n", width, height);
         ResizeGL(width, height);
+        return 0;
+    }
+    case WM_DPICHANGED:
+    {
+        int newDPI = LOWORD(wParam);
+        printf("WM_DPICHANGED(%d)\n", newDPI);
+
+        RECT* prcNewWindow = (RECT*)lParam;
+        AssertWin32(SetWindowPos(g_hWnd, NULL,
+            prcNewWindow->left, prcNewWindow->top,
+            prcNewWindow->right - prcNewWindow->left,
+            prcNewWindow->bottom - prcNewWindow->top,
+            SWP_NOZORDER | SWP_NOACTIVATE));
         return 0;
     }
     case WM_LBUTTONDOWN:
@@ -5836,7 +5987,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         ev.Type = ET_MouseMove;
         ev.Move.X = (int)(short)LOWORD(lParam);
         ev.Move.Y = (int)(short)HIWORD(lParam);
-        printf("WM_MOUSEMOVE: %d %d\n", ev.Move.X, ev.Move.Y);
         PushEvent(&ev);
         return 0;
     }
@@ -6119,6 +6269,15 @@ void InitJGL(const WindowConfig& config)
 
 int main()
 {
+    g_hModuleShcore = LoadLibraryW(L"Shcore.dll");
+    AssertWin32(g_hModuleShcore != NULL);
+
+    HRESULT(_stdcall *pfnSetProcessDpiAwareness)(PROCESS_DPI_AWARENESS) = NULL;
+    PROC_CAST pfnSetProcessDpiAwareness = GetProcAddress(g_hModuleShcore, "SetProcessDpiAwareness");
+    AssertWin32(pfnSetProcessDpiAwareness != NULL);
+
+    AssertHR(pfnSetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE));
+
     WindowConfig config;
     InitDefaultWindowConfig(&config);
     ConfigGL(&config);
@@ -6145,15 +6304,13 @@ int main()
     AssertWin32(RegisterRawInputDevices(rids, sizeof(rids) / sizeof(*rids), sizeof(*rids)));
 
     // Initial resizing of the window
-    DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX;
+    DWORD dwStyle = WS_OVERLAPPEDWINDOW;
     SetLastError(0);
     AssertWin32(SetWindowLong(g_hWnd, GWL_STYLE, dwStyle) != 0 || GetLastError() == 0);
     
     RECT wr = { 0, 0, config.ClientWidth, config.ClientHeight };
     AssertWin32(AdjustWindowRect(&wr, dwStyle, FALSE) != 0);
-    AssertWin32(SetWindowPos(g_hWnd, HWND_NOTOPMOST, 0, 0, wr.right - wr.left, wr.bottom - wr.top, SWP_NOMOVE));
-
-    ShowWindow(g_hWnd, SW_SHOWNORMAL);
+    AssertWin32(SetWindowPos(g_hWnd, HWND_NOTOPMOST, 0, 0, wr.right - wr.left, wr.bottom - wr.top, SWP_NOMOVE | SWP_SHOWWINDOW));
 
     InitGL();
 
@@ -6168,9 +6325,10 @@ int main()
             DispatchMessageW(&msg);
         }
 
-        PaintGL();
-
-        AssertWin32(SwapBuffers(g_hDC));
+        if (PaintGL())
+        {
+            AssertWin32(SwapBuffers(g_hDC));
+        }
     }
 
     return 0;

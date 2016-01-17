@@ -57,6 +57,9 @@ public:
     mat4 GetWorldView() const;
 
     bool Activated = false;
+
+    // eg. when you return from alt tab and the mouse is off-center
+    bool IgnoreNextMove = true;
     
     Scancode LeftKey = SC_A;
     Scancode RightKey = SC_D;
@@ -79,7 +82,7 @@ public:
     // pitch is rotation about x (note: right hand rotation)
     int PendingPitchTicks = 0;
     
-    float DegreesPerRotationTick = 1.0f;
+    float DegreesPerRotationTick = 0.1f;
     float Speed = 100.0f;
     float RunMultiplier = 2.0f;
 

@@ -50,7 +50,7 @@ static bool CheckWin32(BOOL b, const WCHAR* info)
 
     DebugBreak();
 
-    CheckWin32(LocalFree(buffPtr) == NULL, L"AssertWin32");
+    CheckWin32(HeapFree(GetProcessHeap(), NULL, buffPtr) == NULL, L"AssertWin32");
     return false;
 }
 
