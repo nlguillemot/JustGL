@@ -31,6 +31,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <array>
 
 inline const char* DebugSourceToString(GLenum source)
 {
@@ -91,6 +92,25 @@ struct DebugVertex
     vec4 Color;
 };
 
+struct DebugVertexBindingIndex
+{
+    enum Enum
+    {
+        DebugVerts,
+        Count
+    };
+};
+
+struct DebugVertexAttribIndex
+{
+    enum Enum
+    {
+        Position,
+        Color,
+        Count
+    };
+};
+
 class DebugGeometry;
 void swap(DebugGeometry& a, DebugGeometry& b);
 
@@ -99,43 +119,82 @@ class DebugGeometry
 public:
     DebugGeometry()
         : VertexArray(0)
-        , VertexBuffer(0)
+        , VertexBuffers{}
+        , VertexBuffersSizeInBytes{}
+        , IndirectDrawBuffer(0)
+        , IndirectDrawBufferSizeInBytes(0)
     {
     }
     
     ~DebugGeometry()
     {
         glDeleteVertexArrays(1, &VertexArray);
-        glDeleteBuffers(1, &VertexBuffer);
+        glDeleteBuffers((GLsizei)VertexBuffers.size(), VertexBuffers.data());
+        glDeleteBuffers(1, &IndirectDrawBuffer);
+    }
+
+    DebugGeometry(const DebugGeometry&) = delete;
+    DebugGeometry& operator=(const DebugGeometry&) = delete;
+
+    DebugGeometry(DebugGeometry&& other)
+        : DebugGeometry()
+    {
+        swap(*this, other);
+    }
+
+    DebugGeometry& operator=(DebugGeometry&& other)
+    {
+        swap(*this, other);
     }
 
     void Reset();
 
     void AddLine(const DebugVertex& start, const DebugVertex& end);
+    void AddLine(const vec3& start, const vec3& end, const vec4& color)
+    {
+        AddLine(DebugVertex{ start, color }, DebugVertex{ end, color });
+    }
+
     void AddTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c);
+    void AddTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color)
+    {
+        AddTriangle(DebugVertex{ a, color }, DebugVertex{ b, color }, DebugVertex{ c, color });
+    }
+
     void AddWireTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c);
+    void AddWireTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color)
+    {
+        AddWireTriangle(DebugVertex{ a, color }, DebugVertex{ b, color }, DebugVertex{ c, color });
+    }
 
-    // lazily compiles when you ask for it
-    static GLuint GetDebugShader();
+    void AddWireSphere(const vec3& center, float radius, const vec4& color);
+    
+    void UpdateBuffers();
 
-    std::vector<DebugVertex> VertexData;
+    std::array<std::vector<DebugVertex>, DebugVertexBindingIndex::Count> CPUVertexData;
     std::vector<GLDrawArraysIndirectCommand> CPUIndirectDrawBuffer;
     std::vector<GLenum> DrawPrimitiveTypes;
 
     GLuint VertexArray;
-    GLuint VertexBuffer;
+    std::array<GLuint, DebugVertexBindingIndex::Count> VertexBuffers;
+    std::array<GLsizei, DebugVertexBindingIndex::Count> VertexBuffersSizeInBytes;
+    GLuint IndirectDrawBuffer;
+    GLsizei IndirectDrawBufferSizeInBytes;
 };
 
 inline void swap(DebugGeometry& a, DebugGeometry& b)
 {
     using std::swap;
     
-    swap(a.VertexData, b.VertexData);
+    swap(a.CPUVertexData, b.CPUVertexData);
     swap(a.CPUIndirectDrawBuffer, b.CPUIndirectDrawBuffer);
     swap(a.DrawPrimitiveTypes, b.DrawPrimitiveTypes);
 
     swap(a.VertexArray, b.VertexArray);
-    swap(a.VertexBuffer, b.VertexBuffer);
+    swap(a.VertexBuffers, b.VertexBuffers);
+    swap(a.VertexBuffersSizeInBytes, b.VertexBuffersSizeInBytes);
+    swap(a.IndirectDrawBuffer, b.IndirectDrawBuffer);
+    swap(a.IndirectDrawBufferSizeInBytes, b.IndirectDrawBufferSizeInBytes);
 }
 
 #endif // JUSTGL_DEBUG_H

@@ -25,6 +25,7 @@
 #include "justgl_obj.h"
 #include "justgl_fs.h"
 #include "justgl_image.h"
+#include "justgl_dgp.h"
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -747,7 +748,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         }
         else
         {
-            cmd.count = (GLuint)idxbuf.size() - drawbuf.back().firstIndex;
+            cmd.count = (GLuint)idxbuf.size() - (drawbuf.back().firstIndex + drawbuf.back().count);
             cmd.primCount = 1;
             cmd.firstIndex = (GLuint)idxbuf.size() - cmd.count;
             cmd.baseVertex = 0;
@@ -760,53 +761,16 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
             materialNames.push_back(currMaterialName);
             drawbuf.push_back(cmd);
 
-            // debug iterators suck
-            const GLuint* ibuf = idxbuf.data();
-            const float* pbuf = posbuf.data();
+            float boundingSphere[4];
+            BoundingSphereFromIndexedPoints(
+                idxbuf.data() + cmd.firstIndex, cmd.count,
+                posbuf.data(),
+                boundingSphere);
 
-            double centerX = 0.0, centerY = 0.0, centerZ = 0.0;
-            for (size_t idxIdx = cmd.firstIndex; idxIdx < cmd.firstIndex + cmd.count; idxIdx += 3)
-            {
-                double triCenterX = 0.0, triCenterY = 0.0, triCenterZ = 0.0;
-                for (size_t triIdxIdx = idxIdx; triIdxIdx < idxIdx + 3; triIdxIdx++)
-                {
-                    GLuint idx = ibuf[triIdxIdx];
-                    triCenterX += pbuf[idx * positionCardinality + 0];
-                    triCenterY += pbuf[idx * positionCardinality + 1];
-                    triCenterZ += pbuf[idx * positionCardinality + 2];
-                }
-                triCenterX /= 3;
-                triCenterY /= 3;
-                triCenterZ /= 3;
-                centerX += triCenterX;
-                centerY += triCenterY;
-                centerZ += triCenterZ;
-            }
-            
-            GLuint triCount = cmd.count / 3;
-            centerX /= triCount;
-            centerY /= triCount;
-            centerZ /= triCount;
-
-            float maxDistanceSquared = 0.0f;
-            for (size_t idxIdx = cmd.firstIndex; idxIdx < cmd.firstIndex + cmd.count; idxIdx++)
-            {
-                GLuint idx = ibuf[idxIdx];
-                float x, y, z;
-                x = pbuf[idx * positionCardinality + 0];
-                y = pbuf[idx * positionCardinality + 1];
-                z = pbuf[idx * positionCardinality + 2];
-                float dx = x - (float) centerX;
-                float dy = y - (float) centerY;
-                float dz = z - (float) centerZ;
-                float dSq = dx * dx + dy * dy + dz * dz;
-                maxDistanceSquared = std::max(maxDistanceSquared, dSq);
-            }
-
-            centerXs.push_back((float)centerX);
-            centerYs.push_back((float)centerY);
-            centerZs.push_back((float)centerZ);
-            radii.push_back(std::sqrt(maxDistanceSquared));
+            centerXs.push_back(boundingSphere[0]);
+            centerYs.push_back(boundingSphere[1]);
+            centerZs.push_back(boundingSphere[2]);
+            radii.push_back(boundingSphere[3]);
         }
     };
 
@@ -1316,6 +1280,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         pMesh->CenterYs = std::move(centerYs);
         pMesh->CenterZs = std::move(centerZs);
         pMesh->Radii = std::move(radii);
+
+        glBindVertexArray(0);
 
         glDeleteBuffers(MeshObjectVertexBindingIndex::Count, &pMesh->VertexBuffers[0]);
         glGenBuffers(MeshObjectVertexBindingIndex::Count, &pMesh->VertexBuffers[0]);

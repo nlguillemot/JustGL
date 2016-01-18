@@ -218,15 +218,21 @@ inline T length(const vec2_t<T>& v)
 }
 
 template<class T>
-vec2_t<T> normalize(const vec2_t<T>& v)
+inline vec2_t<T> normalize(const vec2_t<T>& v)
 {
     return v / length(v);
 }
 
 template<class T>
-vec2_t<T> abs(const vec2_t<T>& v)
+inline vec2_t<T> abs(const vec2_t<T>& v)
 {
     return vec2_t<T>(abs(v.x), abs(v.y));
+}
+
+template<class T>
+inline size_t size(const vec2_t<T>& v)
+{
+    return 2;
 }
 
 template<class T>
@@ -423,7 +429,7 @@ inline T length(const vec3_t<T>& v)
 }
 
 template<class T>
-vec3_t<T> normalize(const vec3_t<T>& v)
+inline vec3_t<T> normalize(const vec3_t<T>& v)
 {
     return v / length(v);
 }
@@ -438,9 +444,15 @@ inline vec3_t<T> cross(const vec3_t<T>& a, const vec3_t<T>& b)
 }
 
 template<class T>
-vec3_t<T> abs(const vec3_t<T>& v)
+inline vec3_t<T> abs(const vec3_t<T>& v)
 {
     return vec3_t<T>(abs(v.x), abs(v.y), abs(v.z));
+}
+
+template<class T>
+inline size_t size(const vec3_t<T>& v)
+{
+    return 3;
 }
 
 template<class T>
@@ -682,6 +694,12 @@ template<class T>
 vec4_t<T> abs(const vec4_t<T>& v)
 {
     return vec4_t<T>(abs(v.x), abs(v.y), abs(v.z), abs(v.w));
+}
+
+template<class T>
+inline size_t size(const vec4_t<T>& v)
+{
+    return 4;
 }
 
 template<class T>

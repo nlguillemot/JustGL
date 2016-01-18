@@ -117,7 +117,7 @@ public:
     uint64_t Timestamp;
     GLuint Handle;
     
-    std::vector<std::string> IncludeDependencies;
+    std::set<std::string> IncludeDependencies;
 };
 
 inline void swap(Shader& a, Shader& b)
@@ -128,6 +128,7 @@ inline void swap(Shader& a, Shader& b)
     swap(a.Type, b.Type);
     swap(a.Timestamp, b.Timestamp);
     swap(a.Handle, b.Handle);
+
     swap(a.IncludeDependencies, b.IncludeDependencies);
 }
 

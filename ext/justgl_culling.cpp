@@ -31,6 +31,59 @@
 #pragma warning(disable : 4752)
 #include <intrin.h>
 
+static void NormalizePlaneEquation(float plane[4])
+{
+    float mag = sqrt(
+        plane[0] * plane[0] +
+        plane[1] * plane[1] +
+        plane[2] * plane[2]);
+
+    plane[0] = plane[0] / mag;
+    plane[1] = plane[1] / mag;
+    plane[2] = plane[2] / mag;
+    plane[3] = plane[3] / mag;
+}
+
+static void FrustumFromMVP(const float mvp[16], float frustum[6][4])
+{
+    const float(&p)[4][4] = (const float(&)[4][4])*mvp;
+
+    frustum[0][0] = p[0][3] + p[0][0];
+    frustum[0][1] = p[1][3] + p[1][0];
+    frustum[0][2] = p[2][3] + p[2][0];
+    frustum[0][3] = p[3][3] + p[3][0];
+
+    frustum[1][0] = p[0][3] - p[0][0];
+    frustum[1][1] = p[1][3] - p[1][0];
+    frustum[1][2] = p[2][3] - p[2][0];
+    frustum[1][3] = p[3][3] - p[3][0];
+
+    frustum[2][0] = p[0][3] + p[0][1];
+    frustum[2][1] = p[1][3] + p[1][1];
+    frustum[2][2] = p[2][3] + p[2][1];
+    frustum[2][3] = p[3][3] + p[3][1];
+
+    frustum[3][0] = p[0][3] - p[0][1];
+    frustum[3][1] = p[1][3] - p[1][1];
+    frustum[3][2] = p[2][3] - p[2][1];
+    frustum[3][3] = p[3][3] - p[3][1];
+
+    frustum[4][0] = p[0][3] + p[0][2];
+    frustum[4][1] = p[1][3] + p[1][2];
+    frustum[4][2] = p[2][3] + p[2][2];
+    frustum[4][3] = p[3][3] + p[3][2];
+
+    frustum[5][0] = p[0][3] - p[0][2];
+    frustum[5][1] = p[1][3] - p[1][2];
+    frustum[5][2] = p[2][3] - p[2][2];
+    frustum[5][3] = p[3][3] - p[3][2];
+
+    for (int i = 0; i < 6; i++)
+    {
+        NormalizePlaneEquation(frustum[i]);
+    }
+}
+
 void FrustumCullSpheres(
     int nSpheres,
     const float* sphereCenterXs,
@@ -107,4 +160,23 @@ void FrustumCullSpheres(
 
         visibilityResults[i] = outside;
     }
+}
+
+void FrustumCullSpheresFromMVP(
+    int nSpheres,
+    const float* sphereCenterXs,
+    const float* sphereCenterYs,
+    const float* sphereCenterZs,
+    const float* sphereRadii,
+    const float modelViewProjection[16],
+    int* visibilityResults)
+{
+    float frustumPlanes[6][4];
+    FrustumFromMVP(modelViewProjection, frustumPlanes);
+    FrustumCullSpheres(
+        nSpheres,
+        sphereCenterXs, sphereCenterYs, sphereCenterZs,
+        sphereRadii,
+        frustumPlanes,
+        visibilityResults);
 }

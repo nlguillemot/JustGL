@@ -22,25 +22,19 @@
     SOFTWARE.
 */
 
-#ifndef JUSTGL_CULLING_H
-#define JUSTGL_CULLING_H
+#ifndef JUSTGL_DGP_H
+#define JUSTGL_DGP_H
 
-void FrustumCullSpheres(
-    int nSpheres,
-    const float* sphereCenterXs,
-    const float* sphereCenterYs,
-    const float* sphereCenterZs,
-    const float* sphereRadii,
-    const float frustumPlanes[6][4],
-    int* visibilityResults);
+#include <cstdint>
 
-void FrustumCullSpheresFromMVP(
-    int nSpheres,
-    const float* sphereCenterXs,
-    const float* sphereCenterYs,
-    const float* sphereCenterZs,
-    const float* sphereRadii,
-    const float worldView[16],
-    int* visibilityResults);
+void PrincipalComponentsFromIndexedPoints(
+    const uint32_t* idxs, int numIndices,
+    const float* pointXYZs, 
+    float principalComponents[3][3]);
 
-#endif // JUSTGL_CULLING_H
+void BoundingSphereFromIndexedPoints(
+    const uint32_t* idxs, int numIndices,
+    const float* pointXYZs,
+    float boundingSphere[4]); // x, y, z, r
+
+#endif // JUSTGL_DGP_H
