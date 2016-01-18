@@ -27,14 +27,12 @@
 
 #include <cstdint>
 
-void PrincipalComponentsFromIndexedPoints(
-    const uint32_t* idxs, int numIndices,
-    const float* pointXYZs, 
+void PrincipalComponentsFromPoints(
+    int nPoints, const float* pointXYZs, 
     float principalComponents[3][3]);
 
-void BoundingSphereFromIndexedPoints(
-    const uint32_t* idxs, int numIndices,
-    const float* pointXYZs,
+void BoundingSphereFromPoints(
+    int nPoints, const float* pointXYZs,
     float boundingSphere[4]); // x, y, z, r
 
 #endif // JUSTGL_DGP_H

@@ -681,6 +681,8 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     int texCoordCardinality = -1;
     int normalCardinality = -1;
 
+    int firstVertexInThisGroup = -1;
+
     // this could probably be improved
     std::map<std::tuple<int, int, int>, GLuint> cache;
 
@@ -717,8 +719,13 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                 }
             }
 
-            idxbuf.push_back((GLuint)posbuf.size() / positionCardinality - 1);
+            if (firstVertexInThisGroup == -1)
+            {
+                firstVertexInThisGroup = (int)posbuf.size() / positionCardinality - 1;
+            }
 
+            idxbuf.push_back((GLuint)posbuf.size() / positionCardinality - 1  - firstVertexInThisGroup);
+            
             cache.insert(std::make_pair(std::make_tuple(vi, vti, vni), idxbuf.back()));
         }
     };
@@ -727,10 +734,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
     std::vector<std::string> groupNames;
     std::vector<std::string> materialNames;
 
-    std::vector<float> centerXs;
-    std::vector<float> centerYs;
-    std::vector<float> centerZs;
-    std::vector<float> radii;
+    std::vector<float> bsphereXs;
+    std::vector<float> bsphereYs;
+    std::vector<float> bsphereZs;
+    std::vector<float> bsphereRadii;
 
     std::string currGroupName;
     std::string currMaterialName;
@@ -751,7 +758,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
             cmd.count = (GLuint)idxbuf.size() - (drawbuf.back().firstIndex + drawbuf.back().count);
             cmd.primCount = 1;
             cmd.firstIndex = (GLuint)idxbuf.size() - cmd.count;
-            cmd.baseVertex = 0;
+            cmd.baseVertex = firstVertexInThisGroup;
             cmd.baseInstance = 0;
         }
 
@@ -762,16 +769,20 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
             drawbuf.push_back(cmd);
 
             float boundingSphere[4];
-            BoundingSphereFromIndexedPoints(
-                idxbuf.data() + cmd.firstIndex, cmd.count,
-                posbuf.data(),
+            BoundingSphereFromPoints(
+                (int)posbuf.size() / positionCardinality - firstVertexInThisGroup,
+                posbuf.data() + firstVertexInThisGroup * positionCardinality,
                 boundingSphere);
 
-            centerXs.push_back(boundingSphere[0]);
-            centerYs.push_back(boundingSphere[1]);
-            centerZs.push_back(boundingSphere[2]);
-            radii.push_back(boundingSphere[3]);
+            bsphereXs.push_back(boundingSphere[0]);
+            bsphereYs.push_back(boundingSphere[1]);
+            bsphereZs.push_back(boundingSphere[2]);
+            bsphereRadii.push_back(boundingSphere[3]);
         }
+
+        // don't want different objects to share vertex data
+        cache.clear();
+        firstVertexInThisGroup = -1;
     };
 
     mem = mapping.Data;
@@ -1276,10 +1287,10 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         pMesh->CPUIndexBuffer = std::move(idxbuf);
         pMesh->GroupNames = std::move(groupNames);
         pMesh->CPUIndirectDrawBuffer = std::move(drawbuf);
-        pMesh->CenterXs = std::move(centerXs);
-        pMesh->CenterYs = std::move(centerYs);
-        pMesh->CenterZs = std::move(centerZs);
-        pMesh->Radii = std::move(radii);
+        pMesh->BSphereXs = std::move(bsphereXs);
+        pMesh->BSphereYs = std::move(bsphereYs);
+        pMesh->BSphereZs = std::move(bsphereZs);
+        pMesh->BSphereRadii = std::move(bsphereRadii);
 
         glBindVertexArray(0);
 

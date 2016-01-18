@@ -28,36 +28,35 @@
 #include <cassert>
 #include <algorithm>
 
-void PrincipalComponentsFromIndexedPoints(
-    const uint32_t* idxs, int numIndices,
-    const float* pointXYZs,
+void PrincipalComponentsFromPoints(
+    int nPoints, const float* pointXYZs,
     float principalComponents[3][3])
 {
-    assert(numIndices > 0);
+    assert(nPoints > 0);
 
     const float(*pts)[3] = (const float (*)[3])pointXYZs;
 
     // compute the mean position
     double m[3] = { 0.0, 0.0, 0.0 };
-    for (int i = 0; i < numIndices; i++)
+    for (int i = 0; i < nPoints; i++)
     {
         for (int j = 0; j < 3; j++)
         {
-            m[j] += pts[idxs[i]][j];
+            m[j] += pts[i][j];
         }
     }
     for (int j = 0; j < 3; j++)
     {
-        m[j] /= numIndices;
+        m[j] /= nPoints;
     }
 
     // covariance matrix: represents correlation between x,y,z coordinates
     double cov[3][3] = {};
-    for (int i = 0; i < numIndices; i++)
+    for (int i = 0; i < nPoints; i++)
     {
-        double dx = pts[idxs[i]][0] - m[0];
-        double dy = pts[idxs[i]][1] - m[1];
-        double dz = pts[idxs[i]][2] - m[2];
+        double dx = pts[i][0] - m[0];
+        double dy = pts[i][1] - m[1];
+        double dz = pts[i][2] - m[2];
 
         cov[0][0] += dx * dx;
         cov[1][0] += dx * dy;
@@ -66,12 +65,12 @@ void PrincipalComponentsFromIndexedPoints(
         cov[2][1] += dy * dz;
         cov[2][2] += dz * dz;
     }
-    cov[0][0] /= numIndices;
-    cov[1][0] /= numIndices;
-    cov[1][1] /= numIndices;
-    cov[2][0] /= numIndices;
-    cov[2][1] /= numIndices;
-    cov[2][2] /= numIndices;
+    cov[0][0] /= nPoints;
+    cov[1][0] /= nPoints;
+    cov[1][1] /= nPoints;
+    cov[2][0] /= nPoints;
+    cov[2][1] /= nPoints;
+    cov[2][2] /= nPoints;
     cov[0][1] = cov[1][0];
     cov[0][2] = cov[2][0];
     cov[1][2] = cov[2][1];
@@ -110,11 +109,6 @@ void PrincipalComponentsFromIndexedPoints(
 
     // evaluate tweaked discriminant
     double D_ = -(p_ * p_ * p_ + q_ * q_);
-    if (D_ < 0.0)
-    {
-        return;
-    }
-
     assert(D_ >= 0.0);
     
     double eigs[3];
@@ -260,17 +254,15 @@ void PrincipalComponentsFromIndexedPoints(
     }
 }
 
-void BoundingSphereFromIndexedPoints(
-    const uint32_t* idxs, int numIndices,
-    const float* pointXYZs,
+void BoundingSphereFromPoints(
+    int nPoints, const float* pointXYZs,
     float boundingSphere[4])
 {
-    assert(numIndices > 0);
+    assert(nPoints > 0);
 
     float principalComponents[3][3];
-    PrincipalComponentsFromIndexedPoints(
-        idxs, numIndices,
-        pointXYZs,
+    PrincipalComponentsFromPoints(
+        nPoints, pointXYZs,
         principalComponents);
 
     const float(*pts)[3] = (const float(*)[3])pointXYZs;
@@ -279,22 +271,22 @@ void BoundingSphereFromIndexedPoints(
     float minDotProduct = INFINITY;
     float maxDotProduct = -INFINITY;
     int minIdx = 0, maxIdx = 0;
-    for (int i = 0; i < numIndices; i++)
+    for (int i = 0; i < nPoints; i++)
     {
         float d =
-            pts[idxs[i]][0] * principalComponents[0][0] +
-            pts[idxs[i]][1] * principalComponents[0][1] +
-            pts[idxs[i]][2] * principalComponents[0][2];
+            pts[i][0] * principalComponents[0][0] +
+            pts[i][1] * principalComponents[0][1] +
+            pts[i][2] * principalComponents[0][2];
         
         if (d < minDotProduct)
         {
             minDotProduct = d;
-            minIdx = idxs[i];
+            minIdx = i;
         }
         if (d > maxDotProduct)
         {
             maxDotProduct = d;
-            maxIdx = idxs[i];
+            maxIdx = i;
         }
     }
 
@@ -310,23 +302,23 @@ void BoundingSphereFromIndexedPoints(
         (pts[minIdx][2] - center[2]) * (pts[minIdx][2] - center[2]));
 
     // expand sphere for any points that don't lie in the guess
-    for (int i = 0; i < numIndices; i++)
+    for (int i = 0; i < nPoints; i++)
     {
         float distSquared =
-            (pts[idxs[i]][0] - center[0]) * (pts[idxs[i]][0] - center[0]) +
-            (pts[idxs[i]][1] - center[1]) * (pts[idxs[i]][1] - center[1]) +
-            (pts[idxs[i]][2] - center[2]) * (pts[idxs[i]][2] - center[2]);
+            (pts[i][0] - center[0]) * (pts[i][0] - center[0]) +
+            (pts[i][1] - center[1]) * (pts[i][1] - center[1]) +
+            (pts[i][2] - center[2]) * (pts[i][2] - center[2]);
         if (distSquared > radius * radius)
         {
             for (int j = 0; j < 3; j++)
             {
-                float tangentPoint = center[j] - radius * (pts[idxs[i]][j] - center[j]) / std::sqrt(distSquared);
-                center[j] = (tangentPoint + pts[idxs[i]][j]) / 2.0f;
+                float tangentPoint = center[j] - radius * (pts[i][j] - center[j]) / std::sqrt(distSquared);
+                center[j] = (tangentPoint + pts[i][j]) / 2.0f;
             }
             radius = std::sqrt(
-                (pts[idxs[i]][0] - center[0]) * (pts[idxs[i]][0] - center[0]) +
-                (pts[idxs[i]][1] - center[1]) * (pts[idxs[i]][1] - center[1]) +
-                (pts[idxs[i]][2] - center[2]) * (pts[idxs[i]][2] - center[2]));
+                (pts[i][0] - center[0]) * (pts[i][0] - center[0]) +
+                (pts[i][1] - center[1]) * (pts[i][1] - center[1]) +
+                (pts[i][2] - center[2]) * (pts[i][2] - center[2]));
         }
     }
 

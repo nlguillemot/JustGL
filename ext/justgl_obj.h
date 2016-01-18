@@ -191,12 +191,12 @@ public:
     std::vector<std::string> GroupNames;
     std::vector<int> GroupMaterialIDs;
 
-    // center of the polygon group (SoA)
-    std::vector<float> CenterXs;
-    std::vector<float> CenterYs;
-    std::vector<float> CenterZs;
+    // center of the polygon grou's bounding sphere
+    std::vector<float> BSphereXs;
+    std::vector<float> BSphereYs;
+    std::vector<float> BSphereZs;
     // size of the polygon group's bounding sphere
-    std::vector<float> Radii;
+    std::vector<float> BSphereRadii;
 };
 
 inline void swap(MeshObject& a, MeshObject& b)
