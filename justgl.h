@@ -32,9 +32,11 @@
 // To customize the creation of the window and context
 typedef struct WindowConfig
 {
-    int ClientWidth;
-    int ClientHeight;
+    int RenderWidth;
+    int RenderHeight;
+    int DPI;
     const char* WindowTitle;
+    int ExclusiveFullscreen;
 
     // advanced stuff (they have sensible defaults if you don't care)
     int MajorGLVersion;
@@ -69,7 +71,7 @@ void ClipMouseCursorToWindow(int clip);
 
 int IsWindowCurrentlyActive();
 int IsMouseCursorInsideClientArea();
-void GetClientAreaSize(int* width, int *height);
+void GetWindowRenderSize(int* width, int *height);
 
 typedef enum EventType
 {
@@ -5578,9 +5580,11 @@ void InitJGLProcs();
 
 void InitDefaultWindowConfig(WindowConfig* pConfig)
 {
-    pConfig->ClientWidth = 640;
-    pConfig->ClientHeight = 480;
+    pConfig->RenderWidth = 1280;
+    pConfig->RenderHeight = 720;
+    pConfig->DPI = 96;
     pConfig->WindowTitle = "JustGL";
+    pConfig->ExclusiveFullscreen = 0;
 
     pConfig->MajorGLVersion = 3;
     pConfig->MinorGLVersion = 2;
@@ -5645,6 +5649,8 @@ HMODULE g_hModuleOpenGL32;
 HWND g_hWnd;
 HDC g_hDC;
 HGLRC g_hGLRC;
+
+int g_isExclusiveFullscreen = 0;
 
 int g_isMouseCursorShown = 1;
 int g_isMouseClipped = 0;
@@ -5832,7 +5838,7 @@ int IsMouseCursorInsideClientArea()
     return g_isMouseCurrentlyInClientArea;
 }
 
-void GetClientAreaSize(int* width, int *height)
+void GetWindowRenderSize(int* width, int *height)
 {
     RECT r;
     AssertWin32(GetClientRect(g_hWnd, &r));
@@ -6052,48 +6058,51 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         if (wParam == VK_RETURN)
         {
-            // toggle fullscreen
-            DWORD dwStyle = 0;
-            int x, y, w, h;
-
-            if (g_isFullscreen)
+            if (!g_isExclusiveFullscreen)
             {
-                dwStyle = WS_VISIBLE | WS_OVERLAPPEDWINDOW;
-                x = g_savedWindowX;
-                y = g_savedWindowY;
-                w = g_savedWindowWidth;
-                h = g_savedWindowHeight;
-            }
-            else
-            {
-                RECT r;
-                AssertWin32(GetWindowRect(g_hWnd, &r));
-                g_savedWindowX = r.left;
-                g_savedWindowY = r.top;
-                g_savedWindowWidth = r.right - r.left;
-                g_savedWindowHeight = r.bottom - r.top;
+                // toggle fullscreen
+                DWORD dwStyle = 0;
+                int x, y, w, h;
 
-                dwStyle = WS_VISIBLE | WS_POPUP;
-                
-                HMONITOR hMonitor = MonitorFromWindow(g_hWnd, MONITOR_DEFAULTTONEAREST);
-                MONITORINFO mi;
-                mi.cbSize = sizeof(mi);
-                AssertWin32(GetMonitorInfo(hMonitor, &mi));
-                x = mi.rcMonitor.left;
-                y = mi.rcMonitor.top;
-                w = mi.rcMonitor.right - mi.rcMonitor.left;
-                h = mi.rcMonitor.bottom - mi.rcMonitor.top;
-            }
+                if (g_isFullscreen)
+                {
+                    dwStyle = WS_VISIBLE | WS_OVERLAPPEDWINDOW;
+                    x = g_savedWindowX;
+                    y = g_savedWindowY;
+                    w = g_savedWindowWidth;
+                    h = g_savedWindowHeight;
+                }
+                else
+                {
+                    RECT r;
+                    AssertWin32(GetWindowRect(g_hWnd, &r));
+                    g_savedWindowX = r.left;
+                    g_savedWindowY = r.top;
+                    g_savedWindowWidth = r.right - r.left;
+                    g_savedWindowHeight = r.bottom - r.top;
 
-            SetLastError(0);
-            if (SetWindowLong(g_hWnd, GWL_STYLE, dwStyle) == 0)
-            {
-                AssertWin32(GetLastError() != 0);
-            }
+                    dwStyle = WS_VISIBLE | WS_POPUP;
 
-            SetWindowPos(g_hWnd, NULL, x, y, w, h, SWP_NOZORDER | SWP_FRAMECHANGED);
-            g_isFullscreen = !g_isFullscreen;
-            return 0;
+                    HMONITOR hMonitor = MonitorFromWindow(g_hWnd, MONITOR_DEFAULTTONEAREST);
+                    MONITORINFO mi;
+                    mi.cbSize = sizeof(mi);
+                    AssertWin32(GetMonitorInfo(hMonitor, &mi));
+                    x = mi.rcMonitor.left;
+                    y = mi.rcMonitor.top;
+                    w = mi.rcMonitor.right - mi.rcMonitor.left;
+                    h = mi.rcMonitor.bottom - mi.rcMonitor.top;
+                }
+
+                SetLastError(0);
+                if (SetWindowLong(g_hWnd, GWL_STYLE, dwStyle) == 0)
+                {
+                    AssertWin32(GetLastError() != 0);
+                }
+
+                SetWindowPos(g_hWnd, NULL, x, y, w, h, SWP_NOZORDER | SWP_FRAMECHANGED);
+                g_isFullscreen = !g_isFullscreen;
+                return 0;
+            }
         }
         else
         {
@@ -6117,7 +6126,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
 }
 
-void InitJGL(const WindowConfig& config)
+void InitJGL(const WindowConfig* pConfig)
 {
     g_hModuleOpenGL32 = LoadLibraryW(L"opengl32.dll");
     AssertWin32(g_hModuleOpenGL32 != NULL);
@@ -6146,6 +6155,20 @@ void InitJGL(const WindowConfig& config)
     wc.lpszClassName = kWindowClassName;
     AssertWin32(RegisterClassExW(&wc) != 0);
 
+    if (pConfig->ExclusiveFullscreen)
+    {
+        DEVMODE dm;
+        ZeroMemory(&dm, sizeof(dm));
+        dm.dmSize = sizeof(dm);
+        dm.dmPelsWidth = pConfig->RenderWidth;
+        dm.dmPelsHeight = pConfig->RenderHeight;
+        dm.dmBitsPerPel = 32;
+        dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
+
+        AssertWin32(ChangeDisplaySettings(&dm, CDS_FULLSCREEN) == DISP_CHANGE_SUCCESSFUL);
+        g_isExclusiveFullscreen = 1;
+    }
+
     // Have to create a basic window to create a basic context to create a fancy context...
     HWND hWnd_basic = CreateWindowW(kWindowClassName, L"basic", 0, 0, 0, 0, 0, 0, 0, hInstance, 0);
     AssertWin32(hWnd_basic != NULL);
@@ -6160,8 +6183,8 @@ void InitJGL(const WindowConfig& config)
     pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
     pfd.iPixelType = PFD_TYPE_RGBA;
     pfd.cColorBits = 32;
-    pfd.cDepthBits = config.EnableFramebufferDepth ? 24 : 0;
-    pfd.cStencilBits = config.EnableFramebufferDepth ? 8 : 0;
+    pfd.cDepthBits = pConfig->EnableFramebufferDepth ? 24 : 0;
+    pfd.cStencilBits = pConfig->EnableFramebufferDepth ? 8 : 0;
     pfd.iLayerType = PFD_MAIN_PLANE;
 
     int basicPixelFormat = ChoosePixelFormat(hDC_basic, &pfd);
@@ -6202,8 +6225,8 @@ void InitJGL(const WindowConfig& config)
             WGL_ACCUM_ALPHA_BITS_ARB, 0,
             WGL_PIXEL_TYPE_ARB,       WGL_TYPE_RGBA_ARB,
             WGL_COLOR_BITS_ARB,       32,
-            WGL_DEPTH_BITS_ARB,       config.EnableFramebufferDepth ? 24 : 0,
-            WGL_STENCIL_BITS_ARB,     config.EnableFramebufferStencil ? 8 : 0,
+            WGL_DEPTH_BITS_ARB,       pConfig->EnableFramebufferDepth ? 24 : 0,
+            WGL_STENCIL_BITS_ARB,     pConfig->EnableFramebufferStencil ? 8 : 0,
             WGL_AUX_BUFFERS_ARB,      0
         };
 
@@ -6215,18 +6238,18 @@ void InitJGL(const WindowConfig& config)
             currAttrib++;
         }
 
-        if (config.MultisampleCount > 1)
+        if (pConfig->MultisampleCount > 1)
         {
             attribs[currAttrib * 2 + 0] = WGL_SAMPLE_BUFFERS_ARB;
             attribs[currAttrib * 2 + 1] = 1;
             currAttrib++;
 
             attribs[currAttrib * 2 + 0] = WGL_SAMPLES_ARB;
-            attribs[currAttrib * 2 + 1] = config.MultisampleCount;
+            attribs[currAttrib * 2 + 1] = pConfig->MultisampleCount;
             currAttrib++;
         }
 
-        if (config.FramebufferSRGBCapable)
+        if (pConfig->FramebufferSRGBCapable)
         {
             attribs[currAttrib * 2 + 0] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;
             attribs[currAttrib * 2 + 1] = GL_TRUE;
@@ -6263,17 +6286,17 @@ void InitJGL(const WindowConfig& config)
         if (pfnwglCreateContextAttribsARB != NULL)
         {
             int contextFlags = 0;
-            if (config.DebugContext) 
+            if (pConfig->DebugContext) 
             {
                 contextFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
             }
-            if (config.ForwardCompatibleContext)
+            if (pConfig->ForwardCompatibleContext)
             {
                 contextFlags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
             }
 
             int contextProfileMask = 0;
-            if (config.CompatibilityProfileContext)
+            if (pConfig->CompatibilityProfileContext)
             {
                 contextProfileMask = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
             }
@@ -6283,8 +6306,8 @@ void InitJGL(const WindowConfig& config)
             }
 
             int contextAttribs[] = {
-                WGL_CONTEXT_MAJOR_VERSION_ARB, config.MajorGLVersion,
-                WGL_CONTEXT_MINOR_VERSION_ARB, config.MinorGLVersion,
+                WGL_CONTEXT_MAJOR_VERSION_ARB, pConfig->MajorGLVersion,
+                WGL_CONTEXT_MINOR_VERSION_ARB, pConfig->MinorGLVersion,
                 WGL_CONTEXT_FLAGS_ARB, contextFlags,
                 WGL_CONTEXT_PROFILE_MASK_ARB, contextProfileMask,
                 0
@@ -6310,10 +6333,10 @@ void InitJGL(const WindowConfig& config)
         hWnd = hWnd_fancy;
     }
 
-    int titleBufferSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, config.WindowTitle, -1, NULL, 0);
+    int titleBufferSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, pConfig->WindowTitle, -1, NULL, 0);
     AssertWin32(titleBufferSize != 0);
     WCHAR* wtitle = (WCHAR*)malloc(sizeof(WCHAR) * titleBufferSize);
-    AssertWin32(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, config.WindowTitle, -1, wtitle, titleBufferSize));
+    AssertWin32(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, pConfig->WindowTitle, -1, wtitle, titleBufferSize));
     AssertWin32(SetWindowTextW(hWnd, wtitle));
     free(wtitle);
 
@@ -6330,14 +6353,27 @@ int main()
     HRESULT(_stdcall *pfnSetProcessDpiAwareness)(PROCESS_DPI_AWARENESS) = NULL;
     PROC_CAST pfnSetProcessDpiAwareness = GetProcAddress(g_hModuleShcore, "SetProcessDpiAwareness");
     AssertWin32(pfnSetProcessDpiAwareness != NULL);
+    
+    HRESULT(_stdcall *pfnGetDpiForMonitor)(HMONITOR, MONITOR_DPI_TYPE, UINT*, UINT*) = NULL;
+    PROC_CAST pfnGetDpiForMonitor = GetProcAddress(g_hModuleShcore, "GetDpiForMonitor");
+    AssertWin32(pfnGetDpiForMonitor != NULL);
 
     AssertHR(pfnSetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE));
 
     WindowConfig config;
     InitDefaultWindowConfig(&config);
+
+    // fill in the actual DPI
+    POINT primaryMonitorPt = { 0, 0 };
+    HMONITOR hPrimaryMonitor = MonitorFromPoint(primaryMonitorPt, MONITOR_DEFAULTTOPRIMARY);
+
+    UINT dpiX, dpiY;
+    AssertHR(pfnGetDpiForMonitor(hPrimaryMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY));
+    config.DPI = dpiX;
+
     ConfigGL(&config);
     
-    InitJGL(config);
+    InitJGL(&config);
     InitJGLProcs();
 
 #ifndef HID_USAGE_PAGE_GENERIC
@@ -6358,12 +6394,25 @@ int main()
     rids[0].hwndTarget = g_hWnd;
     AssertWin32(RegisterRawInputDevices(rids, sizeof(rids) / sizeof(*rids), sizeof(*rids)));
 
+    DWORD dwStyle;
+    if (config.ExclusiveFullscreen)
+    {
+        dwStyle = WS_POPUP;
+    }
+    else
+    {
+        dwStyle = WS_OVERLAPPEDWINDOW;
+    }
+
     // Initial resizing of the window
-    DWORD dwStyle = WS_OVERLAPPEDWINDOW;
     SetLastError(0);
     AssertWin32(SetWindowLong(g_hWnd, GWL_STYLE, dwStyle) != 0 || GetLastError() == 0);
-    
-    RECT wr = { 0, 0, config.ClientWidth, config.ClientHeight };
+    RECT wr = { 0, 0, config.RenderWidth, config.RenderHeight };
+    if (!config.ExclusiveFullscreen)
+    {
+        wr.right *= config.DPI / USER_DEFAULT_SCREEN_DPI;
+        wr.bottom *= config.DPI / USER_DEFAULT_SCREEN_DPI;
+    }
     AssertWin32(AdjustWindowRect(&wr, dwStyle, FALSE) != 0);
     AssertWin32(SetWindowPos(g_hWnd, HWND_NOTOPMOST, 0, 0, wr.right - wr.left, wr.bottom - wr.top, SWP_NOMOVE | SWP_SHOWWINDOW));
 

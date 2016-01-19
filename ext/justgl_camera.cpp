@@ -39,9 +39,9 @@ void FlythroughCamera::Activate()
 
     if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
     {
-        int clientWidth, clientHeight;
-        GetClientAreaSize(&clientWidth, &clientHeight);
-        SetMousePosition(clientWidth / 2, clientHeight / 2);
+        int renderWidth, renderHeight;
+        GetWindowRenderSize(&renderWidth, &renderHeight);
+        SetMousePosition(renderWidth / 2, renderHeight / 2);
     }
 
     Activated = true;
@@ -54,9 +54,9 @@ void FlythroughCamera::Deactivate()
         return;
     }
 
-    int clientWidth, clientHeight;
-    GetClientAreaSize(&clientWidth, &clientHeight);
-    SetMousePosition(clientWidth / 2, clientHeight / 2);
+    int renderWidth, renderHeight;
+    GetWindowRenderSize(&renderWidth, &renderHeight);
+    SetMousePosition(renderWidth / 2, renderHeight / 2);
     
     ClipMouseCursorToWindow(0);
     ShowMouseCursor(1);
@@ -123,17 +123,17 @@ bool FlythroughCamera::HandleEvent(const Event* ev)
     {
         if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
         {
-            int clientWidth, clientHeight;
-            GetClientAreaSize(&clientWidth, &clientHeight);
+            int renderWidth, renderHeight;
+            GetWindowRenderSize(&renderWidth, &renderHeight);
 
-            if (ev->Move.X != clientWidth / 2 || ev->Move.Y != clientHeight / 2)
+            if (ev->Move.X != renderWidth / 2 || ev->Move.Y != renderHeight / 2)
             {
                 if (!IgnoreNextMove)
                 {
-                    PendingYawTicks -= (ev->Move.X - clientWidth / 2);
-                    PendingPitchTicks -= (ev->Move.Y - clientHeight / 2);
+                    PendingYawTicks -= (ev->Move.X - renderWidth / 2);
+                    PendingPitchTicks -= (ev->Move.Y - renderHeight / 2);
                 }
-                SetMousePosition(clientWidth / 2, clientHeight / 2);
+                SetMousePosition(renderWidth / 2, renderHeight / 2);
                 IgnoreNextMove = false;
                 return true;
             }
