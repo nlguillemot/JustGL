@@ -34,8 +34,8 @@ void FlythroughCamera::Activate()
         return;
     }
 
-        ShowMouseCursor(0);
-        ClipMouseCursorToWindow(1);
+    ShowMouseCursor(0);
+    ClipMouseCursorToWindow(1);
 
     if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
     {
@@ -61,6 +61,16 @@ void FlythroughCamera::Deactivate()
     ClipMouseCursorToWindow(0);
     ShowMouseCursor(1);
     
+    LeftHeld = false;
+    RightHeld = false;
+    CrouchHeld = false;
+    JumpHeld = false;
+    ForwardHeld = false;
+    BackwardHeld = false;
+    RunHeld = false;
+    PendingYawTicks = 0;
+    PendingPitchTicks = 0;
+
     Activated = false;
 }
 

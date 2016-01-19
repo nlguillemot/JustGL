@@ -25,7 +25,7 @@
 #include "justgl_obj.h"
 #include "justgl_fs.h"
 #include "justgl_image.h"
-#include "justgl_dgp.h"
+#include "justgl_visibility.h"
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN

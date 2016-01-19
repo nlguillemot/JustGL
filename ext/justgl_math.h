@@ -26,6 +26,7 @@
 #define JUSTGL_MATH_H
 
 #include <cmath>
+#include <cassert>
 
 template<class T>
 inline T degtorad(T deg)
@@ -349,6 +350,26 @@ struct vec3_t
         }
         return *this;
     }
+
+    vec2_t<T>& xy()
+    {
+        return (vec2_t<T>&)e[0];
+    }
+
+    const vec2_t<T>& xy() const
+    {
+        return (const vec2_t<T>&)e[0];
+    }
+
+    vec2_t<T>& yz()
+    {
+        return (vec2_t<T>&)e[1];
+    }
+
+    const vec2_t<T>& yz() const
+    {
+        return (const vec2_t<T>&)e[1];
+    }
 };
 
 template<class T>
@@ -604,6 +625,56 @@ struct vec4_t
             e[i] /= u;
         }
         return *this;
+    }
+
+    vec2_t<T>& xy()
+    {
+        return (vec2_t<T>&)e[0];
+    }
+
+    const vec2_t<T>& xy() const
+    {
+        return (const vec2_t<T>&)e[0];
+    }
+
+    vec3_t<T>& xyz()
+    {
+        return (vec3_t<T>&)e[0];
+    }
+
+    const vec3_t<T>& xyz() const
+    {
+        return (const vec3_t<T>&)e[0];
+    }
+
+    vec2_t<T>& yz()
+    {
+        return (vec2_t<T>&)e[1];
+    }
+
+    const vec2_t<T>& yz() const
+    {
+        return (const vec2_t<T>&)e[1];
+    }
+
+    vec3_t<T>& yzw()
+    {
+        return (vec3_t<T>&)e[1];
+    }
+
+    const vec3_t<T>& yzw() const
+    {
+        return (const vec3_t<T>&)e[1];
+    }
+
+    vec2_t<T>& zw()
+    {
+        return (vec2_t<T>&)e[2];
+    }
+
+    const vec2_t<T>& zw() const
+    {
+        return (const vec2_t<T>&)e[2];
     }
 };
 
@@ -1155,6 +1226,24 @@ struct mat4_t
         return *this;
     }
 
+    mat4_t& operator*=(T u)
+    {
+        for (T& x : e)
+        {
+            x *= u;
+        }
+        return *this;
+    }
+
+    mat4_t& operator/=(T u)
+    {
+        for (T& x : e)
+        {
+            x /= u;
+        }
+        return *this;
+    }
+
     static mat4_t ortho(T left, T right, T bottom, T top, T nearVal, T farVal)
     {
         T tx = -(right + left) / (right - left);
@@ -1229,8 +1318,7 @@ struct mat4_t
 template<class T>
 inline mat4_t<T> operator*(mat4_t<T> a, const mat4_t<T>& b)
 {
-    a *= b;
-    return a;
+    return a *= b;
 }
 
 template<class T>
@@ -1251,6 +1339,24 @@ inline vec4_t<T> operator*(const vec4_t<T>& a, const mat4_t<T>& m)
 }
 
 template<class T>
+inline mat4_t<T> operator*(mat4_t<T> m, T u)
+{
+    return m *= u;
+}
+
+template<class T>
+inline mat4_t<T> operator*(T u, mat4_t<T> m)
+{
+    return m *= u;
+}
+
+template<class T>
+inline mat4_t<T> operator/(mat4_t<T> m, T u)
+{
+    return m /= u;
+}
+
+template<class T>
 inline mat4_t<T> transpose(const mat4_t<T>& m)
 {
     const T* e = m.e;
@@ -1259,6 +1365,64 @@ inline mat4_t<T> transpose(const mat4_t<T>& m)
         e[1], e[5], e[9],  e[13],
         e[2], e[6], e[10], e[14],
         e[3], e[7], e[11], e[15]);
+}
+
+template<class T>
+inline mat4_t<T> inverse(const mat4_t<T>& m)
+{
+    T c00 = m[2][2] * m[3][3] - m[3][2] * m[2][3];
+    T c02 = m[1][2] * m[3][3] - m[3][2] * m[1][3];
+    T c03 = m[1][2] * m[2][3] - m[2][2] * m[1][3];
+      
+    T c04 = m[2][1] * m[3][3] - m[3][1] * m[2][3];
+    T c06 = m[1][1] * m[3][3] - m[3][1] * m[1][3];
+    T c07 = m[1][1] * m[2][3] - m[2][1] * m[1][3];
+      
+    T c08 = m[2][1] * m[3][2] - m[3][1] * m[2][2];
+    T c10 = m[1][1] * m[3][2] - m[3][1] * m[1][2];
+    T c11 = m[1][1] * m[2][2] - m[2][1] * m[1][2];
+      
+    T c12 = m[2][0] * m[3][3] - m[3][0] * m[2][3];
+    T c14 = m[1][0] * m[3][3] - m[3][0] * m[1][3];
+    T c15 = m[1][0] * m[2][3] - m[2][0] * m[1][3];
+      
+    T c16 = m[2][0] * m[3][2] - m[3][0] * m[2][2];
+    T c18 = m[1][0] * m[3][2] - m[3][0] * m[1][2];
+    T c19 = m[1][0] * m[2][2] - m[2][0] * m[1][2];
+      
+    T c20 = m[2][0] * m[3][1] - m[3][0] * m[2][1];
+    T c22 = m[1][0] * m[3][1] - m[3][0] * m[1][1];
+    T c23 = m[1][0] * m[2][1] - m[2][0] * m[1][1];
+
+    vec4_t<T> f0(c00, c00, c02, c03);
+    vec4_t<T> f1(c04, c04, c06, c07);
+    vec4_t<T> f2(c08, c08, c10, c11);
+    vec4_t<T> f3(c12, c12, c14, c15);
+    vec4_t<T> f4(c16, c16, c18, c19);
+    vec4_t<T> f5(c20, c20, c22, c23);
+
+    vec4_t<T> v0(m[1][0], m[0][0], m[0][0], m[0][0]);
+    vec4_t<T> v1(m[1][1], m[0][1], m[0][1], m[0][1]);
+    vec4_t<T> v2(m[1][2], m[0][2], m[0][2], m[0][2]);
+    vec4_t<T> v3(m[1][3], m[0][3], m[0][3], m[0][3]);
+
+    vec4_t<T> inv0(v1 * f0 - v2 * f1 + v3 * f2);
+    vec4_t<T> inv1(v0 * f0 - v2 * f3 + v3 * f4);
+    vec4_t<T> inv2(v0 * f1 - v1 * f3 + v3 * f5);
+    vec4_t<T> inv3(v0 * f2 - v1 * f4 + v2 * f5);
+
+    vec4_t<T> sgnA(+1, -1, +1, -1);
+    vec4_t<T> sgnB(-1, +1, -1, +1);
+    mat4_t<T> inv(inv0 * sgnA, inv1 * sgnB, inv2 * sgnA, inv3 * sgnB);
+
+    vec4_t<T> r0(inv[0][0], inv[1][0], inv[2][0], inv[3][0]);
+
+    vec4_t<T> d0(m[0] * r0);
+    T d1 = (d0.x + d0.y) + (d0.z + d0.w);
+
+    assert(std::abs(d1) != 0.0);
+    
+    return inv / d1;
 }
 
 using vec2 = vec2_t<float>;

@@ -132,9 +132,70 @@ void DebugGeometry::AddWireSphere(const vec3& center, float radius, const vec4& 
     }
 }
 
-void DebugGeometry::AddWireFrustumFromPlanes(const float frustumPlanes[6][4])
+void DebugGeometry::AddFrustumFromMVP(const mat4& mvp, const vec4& color)
 {
-#pragma message("TODO: Implement AddWireFrustumFromPlanes")
+    mat4 inv = inverse(mvp);
+    vec4 cs[] = {
+        inv * vec4(-1, +1, -1, +1), // left up near
+        inv * vec4(+1, +1, -1, +1), // right up near
+        inv * vec4(-1, -1, -1, +1), // left down near
+        inv * vec4(+1, -1, -1, +1), // right down near
+        inv * vec4(-1, +1, +1, +1), // left up far
+        inv * vec4(+1, +1, +1, +1), // right up far
+        inv * vec4(-1, -1, +1, +1), // left down far
+        inv * vec4(+1, -1, +1, +1), // right down far
+    };
+
+    for (vec4& c : cs)
+    {
+        c.xyz() /= c.w;
+    }
+
+    AddTriangle(cs[0].xyz(), cs[2].xyz(), cs[1].xyz(), color);
+    AddTriangle(cs[2].xyz(), cs[3].xyz(), cs[1].xyz(), color);
+    AddTriangle(cs[0].xyz(), cs[5].xyz(), cs[4].xyz(), color);
+    AddTriangle(cs[0].xyz(), cs[1].xyz(), cs[5].xyz(), color);
+    AddTriangle(cs[1].xyz(), cs[7].xyz(), cs[5].xyz(), color);
+    AddTriangle(cs[1].xyz(), cs[3].xyz(), cs[7].xyz(), color);
+    AddTriangle(cs[3].xyz(), cs[6].xyz(), cs[7].xyz(), color);
+    AddTriangle(cs[3].xyz(), cs[2].xyz(), cs[6].xyz(), color);
+    AddTriangle(cs[0].xyz(), cs[4].xyz(), cs[6].xyz(), color);
+    AddTriangle(cs[0].xyz(), cs[6].xyz(), cs[2].xyz(), color);
+    AddTriangle(cs[5].xyz(), cs[7].xyz(), cs[4].xyz(), color);
+    AddTriangle(cs[7].xyz(), cs[6].xyz(), cs[4].xyz(), color);
+}
+
+void DebugGeometry::AddWireFrustumFromMVP(const mat4& mvp, const vec4& color)
+{
+    mat4 inv = inverse(mvp);
+    vec4 cs[] = {
+        inv * vec4(-1, +1, -1, +1), // left up near
+        inv * vec4(+1, +1, -1, +1), // right up near
+        inv * vec4(-1, -1, -1, +1), // left down near
+        inv * vec4(+1, -1, -1, +1), // right down near
+        inv * vec4(-1, +1, +1, +1), // left up far
+        inv * vec4(+1, +1, +1, +1), // right up far
+        inv * vec4(-1, -1, +1, +1), // left down far
+        inv * vec4(+1, -1, +1, +1), // right down far
+    };
+
+    for (vec4& c : cs)
+    {
+        c.xyz() /= c.w;
+    }
+
+    AddLine(cs[0].xyz(), cs[1].xyz(), color);
+    AddLine(cs[1].xyz(), cs[3].xyz(), color);
+    AddLine(cs[3].xyz(), cs[2].xyz(), color);
+    AddLine(cs[2].xyz(), cs[0].xyz(), color);
+    AddLine(cs[0].xyz(), cs[4].xyz(), color);
+    AddLine(cs[1].xyz(), cs[5].xyz(), color);
+    AddLine(cs[3].xyz(), cs[7].xyz(), color);
+    AddLine(cs[2].xyz(), cs[6].xyz(), color);
+    AddLine(cs[4].xyz(), cs[5].xyz(), color);
+    AddLine(cs[5].xyz(), cs[7].xyz(), color);
+    AddLine(cs[7].xyz(), cs[6].xyz(), color);
+    AddLine(cs[6].xyz(), cs[4].xyz(), color);
 }
 
 void DebugGeometry::UpdateBuffers()

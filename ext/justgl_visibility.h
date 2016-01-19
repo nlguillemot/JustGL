@@ -22,8 +22,8 @@
     SOFTWARE.
 */
 
-#ifndef JUSTGL_DGP_H
-#define JUSTGL_DGP_H
+#ifndef JUSTGL_VISIBILITY_H
+#define JUSTGL_VISIBILITY_H
 
 #include <cstdint>
 
@@ -35,4 +35,26 @@ void BoundingSphereFromPoints(
     int nPoints, const float* pointXYZs,
     float boundingSphere[4]); // x, y, z, r
 
-#endif // JUSTGL_DGP_H
+void NormalizePlaneEquation(float plane[4]);
+
+void FrustumFromMVP(const float mvp[16], float frustum[6][4]);
+
+void FrustumCullSpheres(
+    int nSpheres,
+    const float* sphereCenterXs,
+    const float* sphereCenterYs,
+    const float* sphereCenterZs,
+    const float* sphereRadii,
+    const float frustumPlanes[6][4],
+    int* visibilityResults);
+
+void FrustumCullSpheresFromMVP(
+    int nSpheres,
+    const float* sphereCenterXs,
+    const float* sphereCenterYs,
+    const float* sphereCenterZs,
+    const float* sphereRadii,
+    const float worldView[16],
+    int* visibilityResults);
+
+#endif // JUSTGL_VISIBILITY_H

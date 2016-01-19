@@ -22,11 +22,14 @@
     SOFTWARE.
 */
 
-#include "justgl_dgp.h"
+#include "justgl_visibility.h"
+#include "justgl_math.h"
 
 #include <cmath>
 #include <cassert>
 #include <algorithm>
+
+#include <xmmintrin.h>
 
 void PrincipalComponentsFromPoints(
     int nPoints, const float* pointXYZs,
@@ -327,4 +330,174 @@ void BoundingSphereFromPoints(
     boundingSphere[1] = center[1];
     boundingSphere[2] = center[2];
     boundingSphere[3] = radius;
+}
+
+void NormalizePlaneEquation(float plane[4])
+{
+    float mag = sqrt(
+        plane[0] * plane[0] +
+        plane[1] * plane[1] +
+        plane[2] * plane[2]);
+
+    plane[0] = plane[0] / mag;
+    plane[1] = plane[1] / mag;
+    plane[2] = plane[2] / mag;
+    plane[3] = plane[3] / mag;
+}
+
+void FrustumFromMVP(const float mvp[16], float frustum[6][4])
+{
+    const float(&p)[4][4] = (const float(&)[4][4])*mvp;
+
+    // left
+    frustum[0][0] = p[0][3] + p[0][0];
+    frustum[0][1] = p[1][3] + p[1][0];
+    frustum[0][2] = p[2][3] + p[2][0];
+    frustum[0][3] = p[3][3] + p[3][0];
+
+    // right
+    frustum[1][0] = p[0][3] - p[0][0];
+    frustum[1][1] = p[1][3] - p[1][0];
+    frustum[1][2] = p[2][3] - p[2][0];
+    frustum[1][3] = p[3][3] - p[3][0];
+
+    // bottom
+    frustum[2][0] = p[0][3] + p[0][1];
+    frustum[2][1] = p[1][3] + p[1][1];
+    frustum[2][2] = p[2][3] + p[2][1];
+    frustum[2][3] = p[3][3] + p[3][1];
+
+    // top
+    frustum[3][0] = p[0][3] - p[0][1];
+    frustum[3][1] = p[1][3] - p[1][1];
+    frustum[3][2] = p[2][3] - p[2][1];
+    frustum[3][3] = p[3][3] - p[3][1];
+
+    // near
+    frustum[4][0] = p[0][3] + p[0][2];
+    frustum[4][1] = p[1][3] + p[1][2];
+    frustum[4][2] = p[2][3] + p[2][2];
+    frustum[4][3] = p[3][3] + p[3][2];
+
+    // far
+    frustum[5][0] = p[0][3] - p[0][2];
+    frustum[5][1] = p[1][3] - p[1][2];
+    frustum[5][2] = p[2][3] - p[2][2];
+    frustum[5][3] = p[3][3] - p[3][2];
+
+    for (int i = 0; i < 6; i++)
+    {
+        NormalizePlaneEquation(frustum[i]);
+    }
+}
+
+void FrustumCullSpheres(
+    int nSpheres,
+    const float* sphereCenterXs,
+    const float* sphereCenterYs,
+    const float* sphereCenterZs,
+    const float* sphereRadii,
+    const float frustumPlanes[6][4],
+    int* visibilityResults)
+{
+    // alignment check
+    assert((uintptr_t)sphereCenterXs % 16 == 0);
+    assert((uintptr_t)sphereCenterYs % 16 == 0);
+    assert((uintptr_t)sphereCenterZs % 16 == 0);
+    assert((uintptr_t)sphereRadii % 16 == 0);
+    assert((uintptr_t)visibilityResults % 16 == 0);
+
+    for (int i = 0; i < 6; i++)
+    {
+        float normLengthSq =
+            frustumPlanes[i][0] * frustumPlanes[i][0] +
+            frustumPlanes[i][1] * frustumPlanes[i][1] +
+            frustumPlanes[i][2] * frustumPlanes[i][2];
+        assert(std::abs(normLengthSq - 1.0f) < 0.0001f && "Assuming normalized plane normal");
+    }
+
+    auto fcull1 = [&frustumPlanes](
+        float cx, float cy, float cz, float r, int& result)
+    {
+        bool outside = false;
+
+        for (int p = 0; p < 6; p++)
+        {
+            float outDistance = -(
+                cx * frustumPlanes[p][0] +
+                cy * frustumPlanes[p][1] +
+                cz * frustumPlanes[p][2] +
+                frustumPlanes[p][3]);
+
+            if (outDistance > r)
+            {
+                outside = true;
+                break;
+            }
+        }
+
+        result = !outside;
+    };
+
+    auto fcull4 = [&frustumPlanes](
+        const __m128& cx, const __m128& cy, const __m128& cz,
+        const __m128& r,
+        __m128& result)
+    {
+        __m128 outside = _mm_setzero_ps();
+
+        for (int p = 0; p < 6; p++)
+        {
+            __m128 outDistance =
+                _mm_xor_ps(_mm_set1_ps(-0.0),
+                    _mm_add_ps(_mm_add_ps(_mm_add_ps(
+                        _mm_mul_ps(cx, _mm_set1_ps(frustumPlanes[p][0])),
+                        _mm_mul_ps(cy, _mm_set1_ps(frustumPlanes[p][1]))),
+                        _mm_mul_ps(cz, _mm_set1_ps(frustumPlanes[p][2]))),
+                        _mm_set1_ps(frustumPlanes[p][3])));
+
+            outside = _mm_or_ps(outside, _mm_cmpgt_ps(outDistance, r));
+        }
+
+        result = _mm_cmpeq_ps(outside, _mm_setzero_ps());
+    };
+
+    const __m128* centerXs = (const __m128*)sphereCenterXs;
+    const __m128* centerYs = (const __m128*)sphereCenterYs;
+    const __m128* centerZs = (const __m128*)sphereCenterZs;
+    const __m128* radii = (const __m128*)sphereRadii;
+    __m128* results = (__m128*)visibilityResults;
+
+    int numVectors = nSpheres / 4;
+    int numScalars = nSpheres - numVectors * 4;
+    for (int i = 0; i < numVectors; i++)
+    {
+        fcull4(centerXs[i], centerYs[i], centerZs[i], radii[i], results[i]);
+    }
+    for (int i = numVectors * 4; i < numVectors * 4 + numScalars; i++)
+    {
+        fcull1(
+            sphereCenterXs[i], sphereCenterYs[i], sphereCenterZs[i],
+            sphereRadii[i],
+            visibilityResults[i]);
+    }
+}
+
+void FrustumCullSpheresFromMVP(
+    int nSpheres,
+    const float* sphereCenterXs,
+    const float* sphereCenterYs,
+    const float* sphereCenterZs,
+    const float* sphereRadii,
+    const float modelViewProjection[16],
+    int* visibilityResults)
+{
+    float frustumPlanes[6][4];
+    FrustumFromMVP(modelViewProjection, frustumPlanes);
+    FrustumCullSpheres(
+        nSpheres,
+        sphereCenterXs, sphereCenterYs, sphereCenterZs,
+        sphereRadii,
+        frustumPlanes,
+        visibilityResults);
 }

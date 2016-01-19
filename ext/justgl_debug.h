@@ -169,7 +169,8 @@ public:
 
     void AddWireSphere(const vec3& center, float radius, const vec4& color);
 
-    void AddWireFrustumFromPlanes(const float frustumPlanes[6][4]);
+    void AddFrustumFromMVP(const mat4& mvp, const vec4& color);
+    void AddWireFrustumFromMVP(const mat4& mvp, const vec4& color);
     
     void UpdateBuffers();
 
