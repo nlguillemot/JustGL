@@ -132,6 +132,11 @@ void DebugGeometry::AddWireSphere(const vec3& center, float radius, const vec4& 
     }
 }
 
+void DebugGeometry::AddWireFrustumFromPlanes(const float frustumPlanes[6][4])
+{
+#pragma message("TODO: Implement AddWireFrustumFromPlanes")
+}
+
 void DebugGeometry::UpdateBuffers()
 {
     for (int bufIdx = 0; bufIdx < DebugVertexBindingIndex::Count; bufIdx++)

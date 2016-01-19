@@ -48,31 +48,37 @@ static void FrustumFromMVP(const float mvp[16], float frustum[6][4])
 {
     const float(&p)[4][4] = (const float(&)[4][4])*mvp;
 
+    // left
     frustum[0][0] = p[0][3] + p[0][0];
     frustum[0][1] = p[1][3] + p[1][0];
     frustum[0][2] = p[2][3] + p[2][0];
     frustum[0][3] = p[3][3] + p[3][0];
 
+    // right
     frustum[1][0] = p[0][3] - p[0][0];
     frustum[1][1] = p[1][3] - p[1][0];
     frustum[1][2] = p[2][3] - p[2][0];
     frustum[1][3] = p[3][3] - p[3][0];
 
+    // bottom
     frustum[2][0] = p[0][3] + p[0][1];
     frustum[2][1] = p[1][3] + p[1][1];
     frustum[2][2] = p[2][3] + p[2][1];
     frustum[2][3] = p[3][3] + p[3][1];
 
+    // top
     frustum[3][0] = p[0][3] - p[0][1];
     frustum[3][1] = p[1][3] - p[1][1];
     frustum[3][2] = p[2][3] - p[2][1];
     frustum[3][3] = p[3][3] - p[3][1];
 
+    // near
     frustum[4][0] = p[0][3] + p[0][2];
     frustum[4][1] = p[1][3] + p[1][2];
     frustum[4][2] = p[2][3] + p[2][2];
     frustum[4][3] = p[3][3] + p[3][2];
 
+    // far
     frustum[5][0] = p[0][3] - p[0][2];
     frustum[5][1] = p[1][3] - p[1][2];
     frustum[5][2] = p[2][3] - p[2][2];
