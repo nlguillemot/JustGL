@@ -39,9 +39,9 @@ void FlythroughCamera::Activate()
 
     if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
     {
-        int renderWidth, renderHeight;
-        GetWindowRenderSize(&renderWidth, &renderHeight);
-        SetMousePosition(renderWidth / 2, renderHeight / 2);
+        int clientWidth, clientHeight;
+        GetWindowClientAreaSize(&clientWidth, &clientHeight);
+        SetMousePosition(clientWidth / 2, clientHeight / 2);
     }
 
     Activated = true;
@@ -54,9 +54,9 @@ void FlythroughCamera::Deactivate()
         return;
     }
 
-    int renderWidth, renderHeight;
-    GetWindowRenderSize(&renderWidth, &renderHeight);
-    SetMousePosition(renderWidth / 2, renderHeight / 2);
+    int clientWidth, clientHeight;
+    GetWindowClientAreaSize(&clientWidth, &clientHeight);
+    SetMousePosition(clientWidth / 2, clientHeight / 2);
     
     ClipMouseCursorToWindow(0);
     ShowMouseCursor(1);
@@ -68,8 +68,8 @@ void FlythroughCamera::Deactivate()
     ForwardHeld = false;
     BackwardHeld = false;
     RunHeld = false;
-    PendingYawTicks = 0;
-    PendingPitchTicks = 0;
+    DeltaHorizontalMouseDots = 0;
+    DeltaVerticalMouseDots = 0;
 
     Activated = false;
 }
@@ -123,17 +123,17 @@ bool FlythroughCamera::HandleEvent(const Event* ev)
     {
         if (IsWindowCurrentlyActive() && IsMouseCursorInsideClientArea())
         {
-            int renderWidth, renderHeight;
-            GetWindowRenderSize(&renderWidth, &renderHeight);
+            int clientWidth, clientHeight;
+            GetWindowClientAreaSize(&clientWidth, &clientHeight);
 
-            if (ev->Move.X != renderWidth / 2 || ev->Move.Y != renderHeight / 2)
+            if (ev->Move.X != clientWidth / 2 || ev->Move.Y != clientHeight / 2)
             {
                 if (!IgnoreNextMove)
                 {
-                    PendingYawTicks -= (ev->Move.X - renderWidth / 2);
-                    PendingPitchTicks -= (ev->Move.Y - renderHeight / 2);
+                    DeltaHorizontalMouseDots -= (ev->Move.X - clientWidth / 2);
+                    DeltaVerticalMouseDots -= (ev->Move.Y - clientHeight / 2);
                 }
-                SetMousePosition(renderWidth / 2, renderHeight / 2);
+                SetMousePosition(clientWidth / 2, clientHeight / 2);
                 IgnoreNextMove = false;
                 return true;
             }
@@ -189,15 +189,24 @@ void FlythroughCamera::Update(float dt_Sec)
         EyePosition += yMovement * speed * dt_Sec;
     }
 
-    if (PendingYawTicks != 0 || PendingPitchTicks != 0)
-    {
-        float yawDegrees = DegreesPerRotationTick * PendingYawTicks;
-        mat3 yRotation = mat3::axisRotationDegrees(yawDegrees, vec3(0.0f, 1.0f, 0.0f));
-        PendingYawTicks = 0;
+    int dpi = GetCurrentMonitorDPI();
 
+    if (DeltaHorizontalMouseDots != 0)
+    {
+        float deltaHorizontalMouseInches = (float)DeltaHorizontalMouseDots / dpi;
+        float yawDegrees = DegreesPerInch * deltaHorizontalMouseInches;
+        mat3 yRotation = mat3::axisRotationDegrees(yawDegrees, vec3(0.0f, 1.0f, 0.0f));
+        DeltaHorizontalMouseDots = 0;
+
+        LookDirection = yRotation * LookDirection;
+    }
+
+    if (DeltaVerticalMouseDots != 0)
+    {
         float maxPitchDegrees = std::max(0.0f, radtodeg(acos(dot(LookDirection, UpDirection))) - 10.0f);
         float minPitchDegrees = std::max(0.0f, radtodeg(acos(dot(LookDirection, -UpDirection))) - 10.0f);
-        float pitchDegrees = DegreesPerRotationTick * PendingPitchTicks;
+        float deltaVerticalMouseInches = (float)DeltaVerticalMouseDots / dpi;
+        float pitchDegrees = DegreesPerInch * deltaVerticalMouseInches;
         if (pitchDegrees > 0.0f && pitchDegrees > maxPitchDegrees)
         {
             pitchDegrees = maxPitchDegrees;
@@ -208,9 +217,9 @@ void FlythroughCamera::Update(float dt_Sec)
         }
 
         mat3 xRotation = mat3::axisRotationDegrees(pitchDegrees, across);
-        PendingPitchTicks = 0;
+        DeltaVerticalMouseDots = 0;
 
-        LookDirection = xRotation * yRotation * LookDirection;
+        LookDirection = xRotation * LookDirection;
     }
 }
 

@@ -77,12 +77,15 @@ public:
     bool BackwardHeld = false;
     bool RunHeld = false;
 
-    // yaw is rotation about y (note: right hand rotation)
-    int PendingYawTicks = 0;
-    // pitch is rotation about x (note: right hand rotation)
-    int PendingPitchTicks = 0;
+    // net horizontal mouse movement since the last update
+    int DeltaHorizontalMouseDots = 0;
+    // net vertical mouse movement since the last update
+    int DeltaVerticalMouseDots = 0;
     
-    float DegreesPerRotationTick = 0.1f;
+    // how much to rotate per inch of mouse movement on the screen
+    float DegreesPerInch = 10.0f;
+
+    // movement speed
     float Speed = 100.0f;
     float RunMultiplier = 2.0f;
 

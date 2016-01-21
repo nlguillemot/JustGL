@@ -32,8 +32,8 @@
 // To customize the creation of the window and context
 typedef struct WindowConfig
 {
-    int RenderWidth;
-    int RenderHeight;
+    int ClientWidth;
+    int ClientHeight;
     int DPI;
     const char* WindowTitle;
     int ExclusiveFullscreen;
@@ -71,7 +71,8 @@ void ClipMouseCursorToWindow(int clip);
 
 int IsWindowCurrentlyActive();
 int IsMouseCursorInsideClientArea();
-void GetWindowRenderSize(int* width, int *height);
+void GetWindowClientAreaSize(int* width, int *height);
+int GetCurrentMonitorDPI();
 
 typedef enum EventType
 {
@@ -5580,8 +5581,8 @@ void InitJGLProcs();
 
 void InitDefaultWindowConfig(WindowConfig* pConfig)
 {
-    pConfig->RenderWidth = 1280;
-    pConfig->RenderHeight = 720;
+    pConfig->ClientWidth = 1280;
+    pConfig->ClientHeight = 720;
     pConfig->DPI = 96;
     pConfig->WindowTitle = "JustGL";
     pConfig->ExclusiveFullscreen = 0;
@@ -5671,6 +5672,8 @@ PFNWGLCREATECONTEXT pfnwglCreateContext;
 PFNWGLDELETECONTEXT pfnwglDeleteContext;
 PFNWGLMAKECURRENT pfnwglMakeCurrent;
 PFNWGLGETPROCADDRESS pfnwglGetProcAddress;
+
+HRESULT(_stdcall *pfnGetDpiForMonitor)(HMONITOR, MONITOR_DPI_TYPE, UINT*, UINT*) = NULL;
 
 void AssertWin32(BOOL b)
 {
@@ -5838,12 +5841,20 @@ int IsMouseCursorInsideClientArea()
     return g_isMouseCurrentlyInClientArea;
 }
 
-void GetWindowRenderSize(int* width, int *height)
+void GetWindowClientAreaSize(int* width, int *height)
 {
     RECT r;
     AssertWin32(GetClientRect(g_hWnd, &r));
     if (width) *width = r.right;
     if (height) *height = r.bottom;
+}
+
+int GetCurrentMonitorDPI()
+{
+    HMONITOR hMonitor = MonitorFromWindow(g_hWnd, MONITOR_DEFAULTTOPRIMARY);
+    UINT dpiX, dpiY;
+    AssertHR(pfnGetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY));
+    return dpiX;
 }
 
 void AssertWGL(BOOL b)
@@ -6160,8 +6171,8 @@ void InitJGL(const WindowConfig* pConfig)
         DEVMODE dm;
         ZeroMemory(&dm, sizeof(dm));
         dm.dmSize = sizeof(dm);
-        dm.dmPelsWidth = pConfig->RenderWidth;
-        dm.dmPelsHeight = pConfig->RenderHeight;
+        dm.dmPelsWidth = pConfig->ClientWidth;
+        dm.dmPelsHeight = pConfig->ClientHeight;
         dm.dmBitsPerPel = 32;
         dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
 
@@ -6200,138 +6211,124 @@ void InitJGL(const WindowConfig* pConfig)
     PFNWGLCREATECONTEXTATTRIBSARBPROC pfnwglCreateContextAttribsARB;
 
     PROC_CAST pfnwglChoosePixelFormatARB = pfnwglGetProcAddress("wglChoosePixelFormatARB");
+    AssertWin32(pfnwglChoosePixelFormatARB != NULL);
     PROC_CAST pfnwglCreateContextAttribsARB = pfnwglGetProcAddress("wglCreateContextAttribsARB");
+    AssertWin32(pfnwglCreateContextAttribsARB != NULL);
 
-    int fancyPixelFormat = basicPixelFormat;
-    if (pfnwglChoosePixelFormatARB != NULL)
-    {
-        // Can get a fancier pixel format!
-        static const int kMaxAttribs = 256;
-        int attribs[kMaxAttribs * 2 + 1];
+    static const int kMaxAttribs = 256;
+    int attribs[kMaxAttribs * 2 + 1];
         
-        int unconditionalAttribs[] = {
-            WGL_DRAW_TO_WINDOW_ARB,   GL_TRUE,
-            WGL_ACCELERATION_ARB,     WGL_FULL_ACCELERATION_ARB,
-            WGL_SUPPORT_OPENGL_ARB,   GL_TRUE,
-            WGL_DOUBLE_BUFFER_ARB,    GL_TRUE,
-            WGL_RED_BITS_ARB,         8,
-            WGL_GREEN_BITS_ARB,       8,
-            WGL_BLUE_BITS_ARB,        8,
-            WGL_ALPHA_BITS_ARB,       8,
-            WGL_ACCUM_BITS_ARB,       0,
-            WGL_ACCUM_RED_BITS_ARB,   0,
-            WGL_ACCUM_GREEN_BITS_ARB, 0,
-            WGL_ACCUM_BLUE_BITS_ARB,  0,
-            WGL_ACCUM_ALPHA_BITS_ARB, 0,
-            WGL_PIXEL_TYPE_ARB,       WGL_TYPE_RGBA_ARB,
-            WGL_COLOR_BITS_ARB,       32,
-            WGL_DEPTH_BITS_ARB,       pConfig->EnableFramebufferDepth ? 24 : 0,
-            WGL_STENCIL_BITS_ARB,     pConfig->EnableFramebufferStencil ? 8 : 0,
-            WGL_AUX_BUFFERS_ARB,      0
-        };
+    int unconditionalAttribs[] = {
+        WGL_DRAW_TO_WINDOW_ARB,   GL_TRUE,
+        WGL_ACCELERATION_ARB,     WGL_FULL_ACCELERATION_ARB,
+        WGL_SUPPORT_OPENGL_ARB,   GL_TRUE,
+        WGL_DOUBLE_BUFFER_ARB,    GL_TRUE,
+        WGL_RED_BITS_ARB,         8,
+        WGL_GREEN_BITS_ARB,       8,
+        WGL_BLUE_BITS_ARB,        8,
+        WGL_ALPHA_BITS_ARB,       8,
+        WGL_ACCUM_BITS_ARB,       0,
+        WGL_ACCUM_RED_BITS_ARB,   0,
+        WGL_ACCUM_GREEN_BITS_ARB, 0,
+        WGL_ACCUM_BLUE_BITS_ARB,  0,
+        WGL_ACCUM_ALPHA_BITS_ARB, 0,
+        WGL_PIXEL_TYPE_ARB,       WGL_TYPE_RGBA_ARB,
+        WGL_COLOR_BITS_ARB,       32,
+        WGL_DEPTH_BITS_ARB,       pConfig->EnableFramebufferDepth ? 24 : 0,
+        WGL_STENCIL_BITS_ARB,     pConfig->EnableFramebufferStencil ? 8 : 0,
+        WGL_AUX_BUFFERS_ARB,      0
+    };
 
-        int currAttrib = 0;
-        for (int i = 0; i < sizeof(unconditionalAttribs) / sizeof(*unconditionalAttribs) / 2; i++)
-        {
-            attribs[currAttrib * 2 + 0] = unconditionalAttribs[i * 2 + 0];
-            attribs[currAttrib * 2 + 1] = unconditionalAttribs[i * 2 + 1];
-            currAttrib++;
-        }
+    int currAttrib = 0;
+    for (int i = 0; i < sizeof(unconditionalAttribs) / sizeof(*unconditionalAttribs) / 2; i++)
+    {
+        attribs[currAttrib * 2 + 0] = unconditionalAttribs[i * 2 + 0];
+        attribs[currAttrib * 2 + 1] = unconditionalAttribs[i * 2 + 1];
+        currAttrib++;
+    }
 
-        if (pConfig->MultisampleCount > 1)
-        {
-            attribs[currAttrib * 2 + 0] = WGL_SAMPLE_BUFFERS_ARB;
-            attribs[currAttrib * 2 + 1] = 1;
-            currAttrib++;
+    if (pConfig->MultisampleCount > 1)
+    {
+        attribs[currAttrib * 2 + 0] = WGL_SAMPLE_BUFFERS_ARB;
+        attribs[currAttrib * 2 + 1] = 1;
+        currAttrib++;
 
-            attribs[currAttrib * 2 + 0] = WGL_SAMPLES_ARB;
-            attribs[currAttrib * 2 + 1] = pConfig->MultisampleCount;
-            currAttrib++;
-        }
+        attribs[currAttrib * 2 + 0] = WGL_SAMPLES_ARB;
+        attribs[currAttrib * 2 + 1] = pConfig->MultisampleCount;
+        currAttrib++;
+    }
 
-        if (pConfig->FramebufferSRGBCapable)
-        {
-            attribs[currAttrib * 2 + 0] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;
-            attribs[currAttrib * 2 + 1] = GL_TRUE;
-            currAttrib++;
-        }
+    if (pConfig->FramebufferSRGBCapable)
+    {
+        attribs[currAttrib * 2 + 0] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;
+        attribs[currAttrib * 2 + 1] = GL_TRUE;
+        currAttrib++;
+    }
 
-        assert(currAttrib < kMaxAttribs);
+    assert(currAttrib < kMaxAttribs);
 
-        attribs[currAttrib * 2] = 0;
+    attribs[currAttrib * 2] = 0;
 
-        UINT numSupportedFormats;
-        AssertWGL(pfnwglChoosePixelFormatARB(hDC_basic, attribs, NULL, 1, &fancyPixelFormat, &numSupportedFormats));
-        if (numSupportedFormats > 0)
-        {
-            AssertWin32(DescribePixelFormat(hDC_basic, fancyPixelFormat, sizeof(pfd), &pfd));
-        }
+    UINT numSupportedFormats;
+    int fancyPixelFormat;
+    AssertWGL(pfnwglChoosePixelFormatARB(hDC_basic, attribs, NULL, 1, &fancyPixelFormat, &numSupportedFormats));
+    if (numSupportedFormats > 0)
+    {
+        AssertWin32(DescribePixelFormat(hDC_basic, fancyPixelFormat, sizeof(pfd), &pfd));
     }
 
     HWND hWnd = hWnd_basic;
     HDC hDC = hDC_basic;
     HGLRC hGLRC = hGLRC_basic;
 
-    if (pfnwglCreateContextAttribsARB != NULL || fancyPixelFormat != basicPixelFormat)
+    HWND hWnd_fancy = CreateWindowW(kWindowClassName, L"fancy", 0, 0, 0, 0, 0, 0, 0, hInstance, 0);
+    AssertWin32(hWnd_fancy != NULL);
+
+    HDC hDC_fancy = GetDC(hWnd_fancy);
+    AssertWin32(hDC_fancy != NULL);
+
+    AssertWin32(SetPixelFormat(hDC_fancy, fancyPixelFormat, &pfd));
+
+    int contextFlags = 0;
+    if (pConfig->DebugContext) 
     {
-        HWND hWnd_fancy = CreateWindowW(kWindowClassName, L"fancy", 0, 0, 0, 0, 0, 0, 0, hInstance, 0);
-        AssertWin32(hWnd_fancy != NULL);
-
-        HDC hDC_fancy = GetDC(hWnd_fancy);
-        AssertWin32(hDC_fancy != NULL);
-
-        AssertWin32(SetPixelFormat(hDC_fancy, fancyPixelFormat, &pfd));
-
-        HGLRC hGLRC_fancy;
-        if (pfnwglCreateContextAttribsARB != NULL)
-        {
-            int contextFlags = 0;
-            if (pConfig->DebugContext) 
-            {
-                contextFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-            }
-            if (pConfig->ForwardCompatibleContext)
-            {
-                contextFlags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
-            }
-
-            int contextProfileMask = 0;
-            if (pConfig->CompatibilityProfileContext)
-            {
-                contextProfileMask = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
-            }
-            else
-            {
-                contextProfileMask = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
-            }
-
-            int contextAttribs[] = {
-                WGL_CONTEXT_MAJOR_VERSION_ARB, pConfig->MajorGLVersion,
-                WGL_CONTEXT_MINOR_VERSION_ARB, pConfig->MinorGLVersion,
-                WGL_CONTEXT_FLAGS_ARB, contextFlags,
-                WGL_CONTEXT_PROFILE_MASK_ARB, contextProfileMask,
-                0
-            };
-
-            hGLRC_fancy = pfnwglCreateContextAttribsARB(hDC_fancy, NULL, contextAttribs);
-            AssertWGL(hGLRC_fancy != NULL);
-        }
-        else
-        {
-            hGLRC_fancy = pfnwglCreateContext(hDC_fancy);
-            AssertWGL(hGLRC_fancy != NULL);
-        }
-
-        AssertWin32(pfnwglMakeCurrent(NULL, NULL));
-        AssertWin32(pfnwglDeleteContext(hGLRC_basic));
-        AssertWin32(DestroyWindow(hWnd_basic));
-        
-        AssertWin32(pfnwglMakeCurrent(hDC_fancy, hGLRC_fancy));
-
-        hGLRC = hGLRC_fancy;
-        hDC = hDC_fancy;
-        hWnd = hWnd_fancy;
+        contextFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }
+    if (pConfig->ForwardCompatibleContext)
+    {
+        contextFlags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+    }
+
+    int contextProfileMask = 0;
+    if (pConfig->CompatibilityProfileContext)
+    {
+        contextProfileMask = WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+    }
+    else
+    {
+        contextProfileMask = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+    }
+
+    int contextAttribs[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, pConfig->MajorGLVersion,
+        WGL_CONTEXT_MINOR_VERSION_ARB, pConfig->MinorGLVersion,
+        WGL_CONTEXT_FLAGS_ARB, contextFlags,
+        WGL_CONTEXT_PROFILE_MASK_ARB, contextProfileMask,
+        0
+    };
+
+    HGLRC hGLRC_fancy = pfnwglCreateContextAttribsARB(hDC_fancy, NULL, contextAttribs);
+    AssertWGL(hGLRC_fancy != NULL);
+
+    AssertWin32(pfnwglMakeCurrent(NULL, NULL));
+    AssertWin32(pfnwglDeleteContext(hGLRC_basic));
+    AssertWin32(DestroyWindow(hWnd_basic));
+        
+    AssertWin32(pfnwglMakeCurrent(hDC_fancy, hGLRC_fancy));
+
+    hGLRC = hGLRC_fancy;
+    hDC = hDC_fancy;
+    hWnd = hWnd_fancy;
 
     int titleBufferSize = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, pConfig->WindowTitle, -1, NULL, 0);
     AssertWin32(titleBufferSize != 0);
@@ -6354,7 +6351,6 @@ int main()
     PROC_CAST pfnSetProcessDpiAwareness = GetProcAddress(g_hModuleShcore, "SetProcessDpiAwareness");
     AssertWin32(pfnSetProcessDpiAwareness != NULL);
     
-    HRESULT(_stdcall *pfnGetDpiForMonitor)(HMONITOR, MONITOR_DPI_TYPE, UINT*, UINT*) = NULL;
     PROC_CAST pfnGetDpiForMonitor = GetProcAddress(g_hModuleShcore, "GetDpiForMonitor");
     AssertWin32(pfnGetDpiForMonitor != NULL);
 
@@ -6407,7 +6403,7 @@ int main()
     // Initial resizing of the window
     SetLastError(0);
     AssertWin32(SetWindowLong(g_hWnd, GWL_STYLE, dwStyle) != 0 || GetLastError() == 0);
-    RECT wr = { 0, 0, config.RenderWidth, config.RenderHeight };
+    RECT wr = { 0, 0, config.ClientWidth, config.ClientHeight };
     if (!config.ExclusiveFullscreen)
     {
         wr.right *= config.DPI / USER_DEFAULT_SCREEN_DPI;
