@@ -74,6 +74,8 @@ int IsMouseCursorInsideClientArea();
 void GetWindowClientAreaSize(int* width, int *height);
 int GetCurrentMonitorDPI();
 
+void* GetNativeWindowHandle();
+
 typedef enum EventType
 {
     ET_MouseMove,
@@ -5587,13 +5589,13 @@ void InitDefaultWindowConfig(WindowConfig* pConfig)
     pConfig->WindowTitle = "JustGL";
     pConfig->ExclusiveFullscreen = 0;
 
-    pConfig->MajorGLVersion = 3;
-    pConfig->MinorGLVersion = 2;
+    pConfig->MajorGLVersion = 4;
+    pConfig->MinorGLVersion = 3;
 
-#ifdef NDEBUG
-    pConfig->DebugContext = 0;
-#else
+#ifdef _DEBUG
     pConfig->DebugContext = 1;
+#else
+    pConfig->DebugContext = 0;
 #endif
     pConfig->ForwardCompatibleContext = 0;
     pConfig->CompatibilityProfileContext = 0;
@@ -5855,6 +5857,11 @@ int GetCurrentMonitorDPI()
     UINT dpiX, dpiY;
     AssertHR(pfnGetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY));
     return dpiX;
+}
+
+void* GetNativeWindowHandle()
+{
+    return g_hWnd;
 }
 
 void AssertWGL(BOOL b)
@@ -6406,8 +6413,8 @@ int main()
     RECT wr = { 0, 0, config.ClientWidth, config.ClientHeight };
     if (!config.ExclusiveFullscreen)
     {
-        wr.right *= config.DPI / USER_DEFAULT_SCREEN_DPI;
-        wr.bottom *= config.DPI / USER_DEFAULT_SCREEN_DPI;
+        wr.right = MulDiv(wr.right, config.DPI, USER_DEFAULT_SCREEN_DPI);
+        wr.bottom = MulDiv(wr.bottom, config.DPI, USER_DEFAULT_SCREEN_DPI);
     }
     AssertWin32(AdjustWindowRect(&wr, dwStyle, FALSE) != 0);
     AssertWin32(SetWindowPos(g_hWnd, HWND_NOTOPMOST, 0, 0, wr.right - wr.left, wr.bottom - wr.top, SWP_NOMOVE | SWP_SHOWWINDOW));

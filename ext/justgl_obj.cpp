@@ -608,7 +608,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         bool& parseOK;
         const char*& mem;
         std::string& errorMessage;
-        size_t& i;
+        uint64_t& i;
 
         ~ParseScope()
         {
@@ -911,7 +911,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
         int foundCardinality = 0;
         for (int card = 0; card < 4; card++)
         {
-            size_t old_i = i;
+            uint64_t old_i = i;
             if ((card == 0 || acceptHS()) && parseFloat(&values[card]))
             {
                 foundCardinality++;
@@ -1435,7 +1435,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                     return false;
                 }
 
-#ifndef NDEBUG
+#ifdef _DEBUG
                 if (img.Width >= 1024 || img.Height >= 1024)
                 {
                     printf("Warning: big texture (%dx%d: %s)\n", img.Width, img.Height, filename.c_str());
@@ -1533,7 +1533,7 @@ bool LoadObj(const char* filename, const char* mtlpath, MeshObject* pMesh, Mater
                         return false;
                     }
 
-#ifndef NDEBUG
+#ifdef _DEBUG
                     if (img.Width >= 1024 || img.Height >= 1024)
                     {
                         printf("Warning: big texture (%dx%d: %s)\n", img.Width, img.Height, filename->c_str());

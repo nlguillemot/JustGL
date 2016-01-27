@@ -155,11 +155,11 @@ static bool ReadAndExpandIncludes(const char* filename,
     // add initial source span
     if (includeSpans.empty())
     {
-        result.emplace_back(mem, size);
+        result.emplace_back(mem, (std::string::size_type)size);
     }
     else
     {
-        result.emplace_back(mem, includeSpans[0].first);
+        result.emplace_back(mem, (std::string::size_type)includeSpans[0].first);
     }
     resultFiles.push_back(filename);
 
@@ -199,7 +199,7 @@ static bool ReadAndExpandIncludes(const char* filename,
         {
             nextSpan = includeSpans[i + 1].first;
         }
-        result.emplace_back(&mem[span.second], nextSpan - span.second);
+        result.emplace_back(&mem[span.second], (std::string::size_type)(nextSpan - span.second));
         resultFiles.push_back(filename);
     }
 

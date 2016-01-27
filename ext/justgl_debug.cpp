@@ -24,18 +24,68 @@
 
 #include "justgl_debug.h"
 
-void DebugGeometry::Reset()
+void DebugGeometry::Init()
 {
-    for (auto& v : CPUVertexData)
-    {
-        v.clear();
-    }
+    GLint lastArrayBuffer, lastVertexArray;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &lastArrayBuffer);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &lastVertexArray);
 
-    CPUIndirectDrawBuffer.clear();
-    DrawPrimitiveTypes.clear();
+    const GLchar *vs_src =
+        "#version 430\n"
+        "layout(location = 0) in vec4 Position;\n"
+        "layout(location = 1) in vec4 Color;\n"
+        "out vec4 fColor;\n"
+        "void main()\n"
+        "{\n"
+        "    fColor = Color;\n"
+        "    gl_Position = Position;\n"
+        "}\n";
+
+    const GLchar* fs_src =
+        "#version 430\n"
+        "in vec4 fColor;\n"
+        "out vec4 FragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    FragColor = fColor;\n"
+        "}\n";
+
+    SP = glCreateProgram();
+    VS = glCreateShader(GL_VERTEX_SHADER);
+    FS = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(VS, 1, &vs_src, 0);
+    glShaderSource(FS, 1, &fs_src, 0);
+    glCompileShader(VS);
+    glCompileShader(FS);
+    glAttachShader(SP, VS);
+    glAttachShader(SP, FS);
+    glLinkProgram(SP);
+
+    glGenBuffers(1, &VBO);
+
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), 0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (GLvoid*)(4 * sizeof(float)));
+    glBindVertexArray(0);
+
+    // Restore modified GL state
+    glBindBuffer(GL_ARRAY_BUFFER, lastArrayBuffer);
+    glBindVertexArray(lastVertexArray);
 }
 
-void DebugGeometry::AddLine(const DebugVertex& start, const DebugVertex& end)
+void DebugGeometry::NewFrame(const mat4& mvp)
+{
+    CPUVertexData.clear();
+    CPUIndirectDrawBuffer.clear();
+    DrawPrimitiveTypes.clear();
+    MVP = mvp;
+}
+
+void DebugGeometry::AddLine(const vec3& start, const vec3& end, const vec4& color)
 {
     if (CPUIndirectDrawBuffer.empty() ||
         DrawPrimitiveTypes[CPUIndirectDrawBuffer.size() - 1] != GL_LINES)
@@ -43,7 +93,7 @@ void DebugGeometry::AddLine(const DebugVertex& start, const DebugVertex& end)
         GLDrawArraysIndirectCommand cmd;
         cmd.count = 2;
         cmd.primCount = 1;
-        cmd.first = (GLuint)CPUVertexData[DebugVertexBindingIndex::DebugVerts].size();
+        cmd.first = (GLuint)CPUVertexData.size();
         cmd.baseInstance = 0;
 
         CPUIndirectDrawBuffer.push_back(cmd);
@@ -54,11 +104,11 @@ void DebugGeometry::AddLine(const DebugVertex& start, const DebugVertex& end)
         CPUIndirectDrawBuffer.back().count += 2;
     }
 
-    CPUVertexData[DebugVertexBindingIndex::DebugVerts].push_back(start);
-    CPUVertexData[DebugVertexBindingIndex::DebugVerts].push_back(end);
+    CPUVertexData.push_back({ MVP * vec4(start, 1.0f), color });
+    CPUVertexData.push_back({ MVP * vec4(end, 1.0f), color });
 }
 
-void DebugGeometry::AddTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c)
+void DebugGeometry::AddTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color)
 {
     if (CPUIndirectDrawBuffer.empty() ||
         DrawPrimitiveTypes[CPUIndirectDrawBuffer.size() - 1] != GL_TRIANGLES)
@@ -66,7 +116,7 @@ void DebugGeometry::AddTriangle(const DebugVertex& a, const DebugVertex& b, cons
         GLDrawArraysIndirectCommand cmd;
         cmd.count = 3;
         cmd.primCount = 1;
-        cmd.first = (GLuint)CPUVertexData[DebugVertexBindingIndex::DebugVerts].size();
+        cmd.first = (GLuint)CPUVertexData.size();
         cmd.baseInstance = 0;
 
         CPUIndirectDrawBuffer.push_back(cmd);
@@ -77,16 +127,39 @@ void DebugGeometry::AddTriangle(const DebugVertex& a, const DebugVertex& b, cons
         CPUIndirectDrawBuffer.back().count += 3;
     }
 
-    CPUVertexData[DebugVertexBindingIndex::DebugVerts].push_back(a);
-    CPUVertexData[DebugVertexBindingIndex::DebugVerts].push_back(b);
-    CPUVertexData[DebugVertexBindingIndex::DebugVerts].push_back(c);
+    CPUVertexData.push_back({MVP * vec4(a, 1.0f), color });
+    CPUVertexData.push_back({MVP * vec4(b, 1.0f), color });
+    CPUVertexData.push_back({MVP * vec4(c, 1.0f), color });
 }
 
-void DebugGeometry::AddWireTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c)
+void DebugGeometry::AddWireTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color)
 {
-    AddLine(a, b);
-    AddLine(b, c);
-    AddLine(c, a);
+    AddLine(a, b, color);
+    AddLine(b, c, color);
+    AddLine(c, a, color);
+}
+
+void DebugGeometry::AddCircle(const vec3& center, float radius, const vec3& normal, const vec4& color)
+{
+    int nSlices = 10;
+
+    vec3 t, b;
+    coordinateSystem(normalize(normal), t, b);
+
+    vec3 lastDir;
+    for (int slice = 0; slice <= nSlices; slice++)
+    {
+        float c = cos(6.28318530718f * slice / nSlices);
+        float s = sin(6.28318530718f * slice / nSlices);
+
+        vec3 dir = radius * (t * c + b * s);
+        if (slice != 0)
+        {
+            AddLine(center + lastDir, center + dir, color);
+        }
+
+        lastDir = dir;
+    }
 }
 
 void DebugGeometry::AddWireSphere(const vec3& center, float radius, const vec4& color)
@@ -130,6 +203,50 @@ void DebugGeometry::AddWireSphere(const vec3& center, float radius, const vec4& 
         lastRingY = ringY;
         lastRingRadius = ringRadius;
     }
+}
+
+void DebugGeometry::AddWireAABB(const vec3& minCorner, const vec3& maxCorner, const vec4& color)
+{
+    vec3 bottom[] = {
+        minCorner,
+        vec3(minCorner.x, minCorner.y, maxCorner.z),
+        vec3(maxCorner.x, minCorner.y, minCorner.z),
+        vec3(maxCorner.x, minCorner.y, maxCorner.z)
+    };
+
+    vec3 top[] = {
+        maxCorner,
+        vec3(maxCorner.x, maxCorner.y, minCorner.z),
+        vec3(minCorner.x, maxCorner.y, maxCorner.z),
+        vec3(minCorner.x, maxCorner.y, minCorner.z)
+    };
+
+    AddLine(bottom[0], bottom[1], color);
+    AddLine(bottom[0], bottom[2], color);
+    AddLine(bottom[1], bottom[3], color);
+    AddLine(bottom[2], bottom[3], color);
+
+    AddLine(top[0], top[1], color);
+    AddLine(top[0], top[2], color);
+    AddLine(top[1], top[3], color);
+    AddLine(top[2], top[3], color);
+
+    AddLine(bottom[0], top[3], color);
+    AddLine(bottom[1], top[2], color);
+    AddLine(bottom[2], top[1], color);
+    AddLine(bottom[3], top[0], color);
+}
+
+void DebugGeometry::AddWireArrow(const vec3& start, const vec3& end, const vec4& color)
+{
+    vec3 t, b;
+    coordinateSystem(normalize(start - end), t, b);
+    t = normalize(t + start - end);
+    b = normalize(b + start - end);
+    float arrowheadLen = length(start - end) * 0.1f;
+    AddLine(start, end, color);
+    AddLine(end, end + t * arrowheadLen, color);
+    AddLine(end, end + b * arrowheadLen, color);
 }
 
 void DebugGeometry::AddFrustumFromMVP(const mat4& mvp, const vec4& color)
@@ -198,68 +315,60 @@ void DebugGeometry::AddWireFrustumFromMVP(const mat4& mvp, const vec4& color)
     AddLine(cs[6].xyz(), cs[4].xyz(), color);
 }
 
-void DebugGeometry::UpdateBuffers()
+void DebugGeometry::Render()
 {
-    for (int bufIdx = 0; bufIdx < DebugVertexBindingIndex::Count; bufIdx++)
-    {
-        if (!VertexBuffers[bufIdx])
-        {
-            glGenBuffers(1, &VertexBuffers[bufIdx]);
-        }
+    GLint lastProgram; glGetIntegerv(GL_CURRENT_PROGRAM, &lastProgram);
+    GLint lastArrayBuffer; glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &lastArrayBuffer);
+    GLint lastVertexArray; glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &lastVertexArray);
+    GLint lastDepthMask; glGetIntegerv(GL_DEPTH_WRITEMASK, &lastDepthMask);
+    GLint lastBlendSrc; glGetIntegerv(GL_BLEND_SRC, &lastBlendSrc);
+    GLint lastBlendDst; glGetIntegerv(GL_BLEND_DST, &lastBlendDst);
+    GLint lastBlendEquationRGB; glGetIntegerv(GL_BLEND_EQUATION_RGB, &lastBlendEquationRGB);
+    GLint lastBlendEquationAlpha; glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &lastBlendEquationAlpha);
+    GLboolean lastEnableBlend = glIsEnabled(GL_BLEND);
+    GLboolean lastEnableDepthTest = glIsEnabled(GL_DEPTH_TEST);
 
-        GLsizei sizeInBytes = (GLsizei)CPUVertexData[bufIdx].size() * sizeof(CPUVertexData[bufIdx][0]);
-        if (sizeInBytes > 0)
-        {
-            glBindBuffer(GL_ARRAY_BUFFER, VertexBuffers[bufIdx]);
-            if (VertexBuffersSizeInBytes[bufIdx] < sizeInBytes)
-            {
-                glBufferData(GL_ARRAY_BUFFER, sizeInBytes, CPUVertexData[bufIdx].data(), GL_STREAM_DRAW);
-                VertexBuffersSizeInBytes[bufIdx] = sizeInBytes;
-            }
-            else
-            {
-                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeInBytes, CPUVertexData[bufIdx].data());
-            }
-        }
-    }
-
-    if (!IndirectDrawBuffer)
+    GLsizei sizeInBytes = (GLsizei)CPUVertexData.size() * sizeof(CPUVertexData[0]);
+    if (sizeInBytes > 0)
     {
-        glGenBuffers(1, &IndirectDrawBuffer);
-    }
-
-    if (!CPUIndirectDrawBuffer.empty())
-    {
-        GLsizei sizeInBytes = (GLsizei)CPUIndirectDrawBuffer.size() * sizeof(CPUIndirectDrawBuffer[0]);
-        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, IndirectDrawBuffer);
-        if (IndirectDrawBufferSizeInBytes < sizeInBytes)
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        if (VBOSizeInBytes < sizeInBytes)
         {
-            glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeInBytes, CPUIndirectDrawBuffer.data(), GL_STREAM_DRAW);
-            IndirectDrawBufferSizeInBytes = sizeInBytes;
+            glBufferData(GL_ARRAY_BUFFER, sizeInBytes, CPUVertexData.data(), GL_STREAM_DRAW);
+            VBOSizeInBytes = sizeInBytes;
         }
         else
         {
-            glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0, sizeInBytes, CPUIndirectDrawBuffer.data());
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeInBytes, CPUVertexData.data());
         }
     }
 
-    if (!VertexArray)
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindVertexArray(VAO);
+    glUseProgram(SP);
+    
+    for (size_t drawIdx = 0; drawIdx < CPUIndirectDrawBuffer.size(); drawIdx++)
     {
-        glGenVertexArrays(1, &VertexArray);
-        
-        glBindVertexArray(VertexArray);
-
-        glBindVertexBuffer(DebugVertexBindingIndex::DebugVerts, VertexBuffers[DebugVertexBindingIndex::DebugVerts], 0, sizeof(DebugVertex));
-
-        glVertexAttribFormat(DebugVertexAttribIndex::Position, (GLint)size(DebugVertex().Position), GL_FLOAT, GL_FALSE, offsetof(DebugVertex, Position));
-        glVertexAttribFormat(DebugVertexAttribIndex::Color, (GLint)size(DebugVertex().Color), GL_FLOAT, GL_FALSE, offsetof(DebugVertex, Color));
-
-        glVertexAttribBinding(DebugVertexAttribIndex::Position, DebugVertexBindingIndex::DebugVerts);
-        glVertexAttribBinding(DebugVertexAttribIndex::Color, DebugVertexBindingIndex::DebugVerts);
-
-        glEnableVertexAttribArray(DebugVertexAttribIndex::Position);
-        glEnableVertexAttribArray(DebugVertexAttribIndex::Color);
-
-        glBindVertexArray(0);
+        const GLDrawArraysIndirectCommand& draw = CPUIndirectDrawBuffer[drawIdx];
+        glDrawArraysInstancedBaseInstance(
+            DrawPrimitiveTypes[drawIdx],
+            draw.first,
+            draw.count,
+            draw.primCount,
+            draw.baseInstance);
     }
+
+    glUseProgram(lastProgram);
+    glBindBuffer(GL_ARRAY_BUFFER, lastArrayBuffer);
+    glBindVertexArray(lastVertexArray);
+    glBlendEquationSeparate(lastBlendEquationRGB, lastBlendEquationAlpha);
+    glBlendFunc(lastBlendSrc, lastBlendDst);
+    glDepthMask(lastDepthMask);
+    if (lastEnableBlend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    if (lastEnableDepthTest) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
 }

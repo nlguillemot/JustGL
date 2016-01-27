@@ -27,15 +27,9 @@
 
 #include <cstdint>
 
-void PrincipalComponentsFromPoints(
-    int nPoints, const float* pointXYZs, 
-    float principalComponents[3][3]);
-
 void BoundingSphereFromPoints(
     int nPoints, const float* pointXYZs,
     float boundingSphere[4]); // x, y, z, r
-
-void NormalizePlaneEquation(float plane[4]);
 
 void FrustumFromMVP(const float mvp[16], float frustum[6][4]);
 

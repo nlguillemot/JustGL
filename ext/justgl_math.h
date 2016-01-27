@@ -27,6 +27,7 @@
 
 #include <cmath>
 #include <cassert>
+#include <algorithm>
 
 template<class T>
 inline T degtorad(T deg)
@@ -60,6 +61,30 @@ struct vec2_t
         {
             e[i] = T(0);
         }
+    }
+
+    vec2_t(const vec2_t& other)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            e[i] = other.e[i];
+        }
+    }
+
+    vec2_t& operator=(const vec2_t& other)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            e[i] = other.e[i];
+        }
+        return *this;
+    }
+
+    template<class U>
+    explicit vec2_t(const vec2_t<U>& other)
+    {
+        x = T(other.x);
+        y = T(other.y);
     }
 
     vec2_t(T x, T y)
@@ -202,6 +227,58 @@ inline vec2_t<T> operator/(vec2_t<T> a, T u)
 }
 
 template<class T>
+inline vec2_t<bool> operator==(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    return vec2_t<bool>(a.x == b.x, a.y == b.y);
+}
+
+template<class T>
+inline vec2_t<bool> operator!=(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    return vec2_t<bool>(a.x != b.x, a.y != b.y);
+}
+
+template<class T>
+inline vec2_t<bool> operator<(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    return vec2_t<bool>(a.x < b.x, a.y < b.y);
+}
+
+template<class T>
+inline vec2_t<bool> operator>(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    return vec2_t<bool>(a.x > b.x, a.y > b.y);
+}
+
+template<class T>
+inline vec2_t<bool> operator<=(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    return vec2_t<bool>(a.x <= b.x, a.y <= b.y);
+}
+
+template<class T>
+inline vec2_t<bool> operator>=(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    return vec2_t<bool>(a.x >= b.x, a.y >= b.y);
+}
+
+template<class T>
+inline vec2_t<bool> operator!(const vec2_t<bool>& v)
+{
+    return vec2_t<bool>(!v.x, !v.y);
+}
+
+inline bool any(const vec2_t<bool>& v)
+{
+    return v.x || v.y;
+}
+
+inline bool all(const vec2_t<bool>& v)
+{
+    return v.x && v.y;
+}
+
+template<class T>
 inline T dot(const vec2_t<T>& a, const vec2_t<T>& b)
 {
     T d = T(0);
@@ -215,7 +292,14 @@ inline T dot(const vec2_t<T>& a, const vec2_t<T>& b)
 template<class T>
 inline T length(const vec2_t<T>& v)
 {
+    using std::sqrt;
     return sqrt(dot(v, v));
+}
+
+template<class T>
+inline T lengthSquared(const vec2_t<T>& v)
+{
+    return dot(v, v);
 }
 
 template<class T>
@@ -227,7 +311,22 @@ inline vec2_t<T> normalize(const vec2_t<T>& v)
 template<class T>
 inline vec2_t<T> abs(const vec2_t<T>& v)
 {
+    using std::abs;
     return vec2_t<T>(abs(v.x), abs(v.y));
+}
+
+template<class T>
+inline vec2_t<T> min(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    using std::min;
+    return vec2_t<T>(min(a.x, b.x), min(a.y, b.y));
+}
+
+template<class T>
+inline vec2_t<T> max(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+    using std::max;
+    return vec2_t<T>(max(a.x, b.x), max(a.y, b.y));
 }
 
 template<class T>
@@ -256,6 +355,31 @@ struct vec3_t
         {
             e[i] = T(0);
         }
+    }
+
+    vec3_t(const vec3_t& other)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            e[i] = other.e[i];
+        }
+    }
+
+    vec3_t& operator=(const vec3_t& other)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            e[i] = other.e[i];
+        }
+        return *this;
+    }
+
+    template<class U>
+    explicit vec3_t(const vec3_t<U>& other)
+    {
+        x = T(other.x);
+        y = T(other.y);
+        z = T(other.z);
     }
 
     vec3_t(T x, T y, T z)
@@ -387,29 +511,25 @@ inline vec3_t<T> operator+(const vec3_t<T>& v)
 template<class T>
 inline vec3_t<T> operator+(vec3_t<T> a, const vec3_t<T>& b)
 {
-    a += b;
-    return a;
+    return a += b;
 }
 
 template<class T>
 inline vec3_t<T> operator-(vec3_t<T> a, const vec3_t<T>& b)
 {
-    a -= b;
-    return a;
+    return a -= b;
 }
 
 template<class T>
 inline vec3_t<T> operator*(vec3_t<T> a, const vec3_t<T>& b)
 {
-    a *= b;
-    return a;
+    return a *= b;
 }
 
 template<class T>
 inline vec3_t<T> operator*(vec3_t<T> a, T u)
 {
-    a *= u;
-    return a;
+    return a *= u;
 }
 
 template<class T>
@@ -433,6 +553,58 @@ inline vec3_t<T> operator/(vec3_t<T> a, T u)
 }
 
 template<class T>
+inline vec3_t<bool> operator==(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    return vec3_t<bool>(a.x == b.x, a.y == b.y, a.z == b.z);
+}
+
+template<class T>
+inline vec3_t<bool> operator!=(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    return vec3_t<bool>(a.x != b.x, a.y != b.y, a.z != b.z);
+}
+
+template<class T>
+inline vec3_t<bool> operator<(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    return vec3_t<bool>(a.x < b.x, a.y < b.y, a.z < b.z);
+}
+
+template<class T>
+inline vec3_t<bool> operator>(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    return vec3_t<bool>(a.x > b.x, a.y > b.y, a.z > b.z);
+}
+
+template<class T>
+inline vec3_t<bool> operator<=(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    return vec3_t<bool>(a.x <= b.x, a.y <= b.y, a.z <= b.z);
+}
+
+template<class T>
+inline vec3_t<bool> operator>=(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    return vec3_t<bool>(a.x >= b.x, a.y >= b.y, a.z >= b.z);
+}
+
+template<class T>
+inline vec3_t<bool> operator!(const vec3_t<bool>& v)
+{
+    return vec3_t<bool>(!v.x, !v.y, !v.z);
+}
+
+inline bool any(const vec3_t<bool>& v)
+{
+    return v.x || v.y || v.z;
+}
+
+inline bool all(const vec3_t<bool>& v)
+{
+    return v.x && v.y && v.z;
+}
+
+template<class T>
 inline T dot(const vec3_t<T>& a, const vec3_t<T>& b)
 {
     T d = T(0);
@@ -446,13 +618,42 @@ inline T dot(const vec3_t<T>& a, const vec3_t<T>& b)
 template<class T>
 inline T length(const vec3_t<T>& v)
 {
+    using std::sqrt;
     return sqrt(dot(v, v));
+}
+
+template<class T>
+inline T lengthSquared(const vec3_t<T>& v)
+{
+    return dot(v, v);
 }
 
 template<class T>
 inline vec3_t<T> normalize(const vec3_t<T>& v)
 {
     return v / length(v);
+}
+
+template<class T>
+inline void coordinateSystem(const vec3_t<T>& v1, vec3_t<T>& v2, vec3_t<T>& v3)
+{
+    using std::abs;
+    using std::sqrt;
+
+    // assuming v1 is already normalized
+    assert(abs(length(v1) - T(1)) < T(0.001));
+
+    if (abs(v1.x) > abs(v1.y))
+    {
+        T invLen = T(1) / sqrt(v1.x * v1.x + v1.z * v1.z);
+        v2 = vec3_t<T>(-v1.z * invLen, T(0), v1.x * invLen);
+    }
+    else
+    {
+        T invLen = T(1) / sqrt(v1.y * v1.y + v1.z * v1.z);
+        v2 = vec3_t<T>(T(0), v1.z * invLen, -v1.y * invLen);
+    }
+    v3 = cross(v1, v2);
 }
 
 template<class T>
@@ -467,7 +668,22 @@ inline vec3_t<T> cross(const vec3_t<T>& a, const vec3_t<T>& b)
 template<class T>
 inline vec3_t<T> abs(const vec3_t<T>& v)
 {
+    using std::abs;
     return vec3_t<T>(abs(v.x), abs(v.y), abs(v.z));
+}
+
+template<class T>
+inline vec3_t<T> min(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    using std::min;
+    return vec3_t<T>(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z));
+}
+
+template<class T>
+inline vec3_t<T> max(const vec3_t<T>& a, const vec3_t<T>& b)
+{
+    using std::max;
+    return vec3_t<T>(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z));
 }
 
 template<class T>
@@ -497,6 +713,32 @@ struct vec4_t
         {
             e[i] = T(0);
         }
+    }
+
+    vec4_t(const vec4_t& other)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            e[i] = other.e[i];
+        }
+    }
+
+    vec4_t& operator=(const vec4_t& other)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            e[i] = other.e[i];
+        }
+        return *this;
+    }
+
+    template<class U>
+    explicit vec4_t(const vec4_t<U>& other)
+    {
+        x = T(other.x);
+        y = T(other.y);
+        z = T(other.z);
+        w = T(other.w);
     }
 
     vec4_t(T x, T y, T z, T w)
@@ -739,6 +981,58 @@ inline vec4_t<T> operator/(vec4_t<T> a, T u)
 }
 
 template<class T>
+inline vec4_t<bool> operator==(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    return vec4_t<bool>(a.x == b.x, a.y == b.y, a.z == b.z, a.w == b.w);
+}
+
+template<class T>
+inline vec4_t<bool> operator!=(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    return vec4_t<bool>(a.x != b.x, a.y != b.y, a.z != b.z, a.w != b.w);
+}
+
+template<class T>
+inline vec4_t<bool> operator<(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    return vec4_t<bool>(a.x < b.x, a.y < b.y, a.z < b.z, a.w < b.w);
+}
+
+template<class T>
+inline vec4_t<bool> operator>(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    return vec4_t<bool>(a.x > b.x, a.y > b.y, a.z > b.z, a.w > b.w);
+}
+
+template<class T>
+inline vec4_t<bool> operator<=(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    return vec4_t<bool>(a.x <= b.x, a.y <= b.y, a.z <= b.z, a.w <= b.w);
+}
+
+template<class T>
+inline vec4_t<bool> operator>=(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    return vec4_t<bool>(a.x >= b.x, a.y >= b.y, a.z >= b.z, a.w >= b.w);
+}
+
+template<class T>
+inline vec4_t<bool> operator!(const vec4_t<bool>& v)
+{
+    return vec4_t<bool>(!v.x, !v.y, !v.z, !v.w);
+}
+
+inline bool any(const vec4_t<bool>& v)
+{
+    return v.x || v.y || v.z || v.w;
+}
+
+inline bool all(const vec4_t<bool>& v)
+{
+    return v.x && v.y && v.z && v.w;
+}
+
+template<class T>
 inline T dot(const vec4_t<T>& a, const vec4_t<T>& b)
 {
     T d = T(0);
@@ -752,7 +1046,14 @@ inline T dot(const vec4_t<T>& a, const vec4_t<T>& b)
 template<class T>
 inline T length(const vec4_t<T>& v)
 {
+    using std::sqrt;
     return sqrt(dot(v, v));
+}
+
+template<class T>
+inline T lengthSquared(const vec4_t<T>& v)
+{
+    return dot(v, v);
 }
 
 template<class T>
@@ -764,7 +1065,22 @@ vec4_t<T> normalize(const vec4_t<T>& v)
 template<class T>
 vec4_t<T> abs(const vec4_t<T>& v)
 {
+    using std::abs;
     return vec4_t<T>(abs(v.x), abs(v.y), abs(v.z), abs(v.w));
+}
+
+template<class T>
+inline vec4_t<T> min(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    using std::min;
+    return vec4_t<T>(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w));
+}
+
+template<class T>
+inline vec4_t<T> max(const vec4_t<T>& a, const vec4_t<T>& b)
+{
+    using std::max;
+    return vec4_t<T>(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w));
 }
 
 template<class T>
@@ -798,6 +1114,32 @@ struct mat2_t
                     e[i] = T(0);
                 }
             }
+        }
+    }
+
+    mat2_t(const mat2_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = other.e[i];
+        }
+    }
+
+    mat2_t& operator=(const mat2_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = other.e[i];
+        }
+        return *this;
+    }
+
+    template<class U>
+    explicit mat2_t(const mat2_t<U>& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = T(other.e[i]);
         }
     }
 
@@ -862,13 +1204,42 @@ struct mat2_t
         }
         return *this;
     }
+
+    mat2_t& operator+=(const mat2_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] += other.e[i];
+        }
+        return *this;
+    }
+    
+    mat2_t& operator-=(const mat2_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] -= other.e[i];
+        }
+        return *this;
+    }
 };
 
 template<class T>
 inline mat2_t<T> operator*(mat2_t<T> a, const mat2_t<T>& b)
 {
-    a *= b;
-    return a;
+    return a *= b;
+}
+
+template<class T>
+inline mat2_t<T> operator+(mat2_t<T> a, const mat2_t<T>& b)
+{
+    return a += b;
+}
+
+template<class T>
+inline mat2_t<T> operator-(mat2_t<T> a, const mat2_t<T>& b)
+{
+    return a -= b;
 }
 
 template<class T>
@@ -892,6 +1263,18 @@ inline mat2_t<T> transpose(const mat2_t<T>& m)
     return mat2_t<T>(
         e[0], e[2],
         e[1], e[3]);
+}
+
+template<class T>
+inline T trace(const mat2_t<T>& m)
+{
+    return m[0][0] + m[1][1];
+}
+
+template<class T>
+inline T det(const mat2_t<T>& m)
+{
+    return m[0][0] * m[1][1] - m[0][1] * m[1][0];
 }
 
 template<class T>
@@ -919,6 +1302,32 @@ struct mat3_t
                     e[i] = T(0);
                 }
             }
+        }
+    }
+
+    mat3_t(const mat3_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = other.e[i];
+        }
+    }
+
+    mat3_t& operator=(const mat3_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = other.e[i];
+        }
+        return *this;
+    }
+
+    template<class U>
+    explicit mat3_t(const mat3_t<U>& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = T(other.e[i]);
         }
     }
 
@@ -1016,6 +1425,24 @@ struct mat3_t
         return *this;
     }
 
+    mat3_t& operator+=(const mat3_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] += other.e[i];
+        }
+        return *this;
+    }
+
+    mat3_t& operator-=(const mat3_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] -= other.e[i];
+        }
+        return *this;
+    }
+
     static mat3_t axisRotationDegrees(T degrees, const vec3_t<T>& axis)
     {
         T th = degtorad(degrees);
@@ -1041,8 +1468,19 @@ struct mat3_t
 template<class T>
 inline mat3_t<T> operator*(mat3_t<T> a, const mat3_t<T>& b)
 {
-    a *= b;
-    return a;
+    return a *= b;
+}
+
+template<class T>
+inline mat3_t<T> operator+(mat3_t<T> a, const mat3_t<T>& b)
+{
+    return a += b;
+}
+
+template<class T>
+inline mat3_t<T> operator-(mat3_t<T> a, const mat3_t<T>& b)
+{
+    return a -= b;
 }
 
 template<class T>
@@ -1071,6 +1509,24 @@ inline mat3_t<T> transpose(const mat3_t<T>& m)
 }
 
 template<class T>
+inline T trace(const mat3_t<T>& m)
+{
+    return m[0][0] + m[1][1] + m[2][2];
+}
+
+template<class T>
+inline T det(const mat3_t<T>& m)
+{
+    return
+        + m[0][0] * m[1][1] * m[2][2]
+        + m[1][0] * m[2][1] * m[0][2]
+        + m[2][0] * m[0][1] * m[1][2]
+        - m[2][0] * m[1][1] * m[0][2]
+        - m[1][0] * m[0][1] * m[2][2]
+        - m[0][0] * m[2][1] * m[1][2];
+}
+
+template<class T>
 struct mat4_t
 {
     T e[16];
@@ -1095,6 +1551,32 @@ struct mat4_t
                     e[i] = T(0);
                 }
             }
+        }
+    }
+
+    mat4_t(const mat4_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = other.e[i];
+        }
+    }
+
+    mat4_t& operator=(const mat4_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = other.e[i];
+        }
+        return *this;
+    }
+
+    template<class U>
+    explicit mat4_t(const mat4_t<U>& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] = T(other.e[i]);
         }
     }
 
@@ -1235,6 +1717,24 @@ struct mat4_t
         return *this;
     }
 
+    mat4_t& operator+=(const mat4_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] += other.e[i];
+        }
+        return *this;
+    }
+
+    mat4_t& operator-=(const mat4_t& other)
+    {
+        for (int i = 0; i < NCols * NRows; i++)
+        {
+            e[i] -= other.e[i];
+        }
+        return *this;
+    }
+
     mat4_t& operator/=(T u)
     {
         for (T& x : e)
@@ -1322,6 +1822,18 @@ inline mat4_t<T> operator*(mat4_t<T> a, const mat4_t<T>& b)
 }
 
 template<class T>
+inline mat4_t<T> operator+(mat4_t<T> a, const mat4_t<T>& b)
+{
+    return a += b;
+}
+
+template<class T>
+inline mat4_t<T> operator-(mat4_t<T> a, const mat4_t<T>& b)
+{
+    return a -= b;
+}
+
+template<class T>
 inline vec4_t<T> operator*(const mat4_t<T>& m, const vec4_t<T>& v)
 {
     return vec4_t<T>(
@@ -1365,6 +1877,26 @@ inline mat4_t<T> transpose(const mat4_t<T>& m)
         e[1], e[5], e[9],  e[13],
         e[2], e[6], e[10], e[14],
         e[3], e[7], e[11], e[15]);
+}
+
+template<class T>
+inline T trace(const mat4_t<T>& m)
+{
+    return m[0][0] + m[1][1] + m[2][2] + m[3][3];
+}
+
+template<class T>
+inline T det(const mat4_t<T>& m)
+{
+    return
+        + m[0][0] * m[1][1] * m[2][2] * m[3][3] + m[0][0] * m[2][1] * m[3][2] * m[1][3] + m[0][0] * m[3][1] * m[1][2] * m[2][3]
+        + m[1][0] * m[0][1] * m[3][2] * m[2][3] + m[1][0] * m[2][1] * m[0][2] * m[3][3] + m[1][0] * m[3][1] * m[2][2] * m[0][3]
+        + m[2][0] * m[0][1] * m[1][2] * m[3][3] + m[2][0] * m[1][1] * m[3][2] * m[0][3] + m[2][0] * m[3][1] * m[0][2] * m[1][3]
+        + m[3][0] * m[0][1] * m[2][2] * m[1][3] + m[3][0] * m[1][1] * m[0][2] * m[2][3] + m[3][0] * m[2][1] * m[1][2] * m[0][3]
+        - m[0][0] * m[1][1] * m[3][2] * m[2][3] - m[0][0] * m[2][1] * m[1][2] * m[3][3] - m[0][0] * m[3][1] * m[2][2] * m[1][3]
+        - m[1][0] * m[0][1] * m[2][2] * m[3][3] - m[1][0] * m[2][1] * m[3][2] * m[0][3] - m[1][0] * m[3][1] * m[0][2] * m[2][3]
+        - m[2][0] * m[0][1] * m[3][2] * m[1][3] - m[2][0] * m[1][1] * m[0][2] * m[3][3] - m[2][0] * m[3][1] * m[1][2] * m[0][3]
+        - m[3][0] * m[0][1] * m[1][2] * m[2][3] - m[3][0] * m[1][1] * m[2][2] * m[0][3] - m[3][0] * m[2][1] * m[0][2] * m[1][3];
 }
 
 template<class T>
@@ -1423,6 +1955,79 @@ inline mat4_t<T> inverse(const mat4_t<T>& m)
     assert(std::abs(d1) != 0.0);
     
     return inv / d1;
+}
+
+template<class T>
+inline void eigendecompose(
+    mat3_t<T> m, vec3_t<T>& eigenvalues, mat3_t<T>& eigenvectors,
+    int maxSweeps = 32, T epsilon = T(1.0e-10))
+{
+    // Finds eigenvalues & vectors of a 3x3 symmetric matrix using the Jacobi method
+    // Based on listing 16.7 of Mathematics for 3D Game Programming and Computer Graphics
+
+    // This algorithm iteratively makes the off-diagonals smaller.
+    // This is done by repeatedly multiplying the matrix M by R^T * M * R,
+    // where R is a rotation matrix that anhilates one of the three off-diagonal entries.
+    //
+    // When it converges, the diagonal of M will store the eigenvalues,
+    // and the columns of R_1 R_2 R_3 ... R_m will store the eigenvectors.
+
+    // Input matrix must be symmetric
+    assert(m[1][0] == m[0][1]);
+    assert(m[2][0] == m[0][2]);
+    assert(m[2][1] == m[1][2]);
+
+    // initially no rotation
+    eigenvectors = mat3_t<T>();
+
+    auto annihilate = [&](
+        int c, int r, 
+        T* other1, T* other2 /* the other off 2 diagonals */)
+    {
+        if (m[c][r] == T(0))
+        {
+            return;
+        }
+
+        T u = (m[r][r] - m[c][c]) * T(0.5) / m[c][r];
+        T u2 = u * u;
+        T u2p1 = u2 + T(1);
+        T t = (u2p1 != u2) ?
+            ((u < T(0)) ? T(-1) : T(1)) * (sqrt(u2p1) - abs(u))
+            : T(0.5) / u;
+        T cosine = T(1) / sqrt(t * t + T(1));
+        T sine = cosine * t;
+
+        m[c][c] -= t * m[c][r];
+        m[r][r] += t * m[c][r];
+        m[c][r] = T(0);
+
+        T temp = cosine * (*other1) - sine * (*other2);
+        *other2 = sine * (*other1) + cosine * (*other2);
+        *other1 = temp;
+
+        for (int i = 0; i < 3; i++)
+        {
+            T temp = cosine * eigenvectors[c][i] - sine * eigenvectors[r][i];
+            eigenvectors[r][i] = sine * eigenvectors[c][i] + cosine * eigenvectors[r][i];
+            eigenvectors[c][i] = temp;
+        }
+    };
+
+    for (int sweep = 0; sweep < maxSweeps; sweep++)
+    {
+        // If all off-diagonals are small enough, we have converged to a solution.
+        if (abs(m[0][1]) < epsilon && abs(m[0][2]) < epsilon && abs(m[1][2]) < epsilon)
+        {
+            break;
+        }
+
+        annihilate(0, 1, &m[0][2], &m[1][2]);
+        annihilate(0, 2, &m[0][1], &m[1][2]);
+        annihilate(1, 2, &m[0][1], &m[0][2]);
+    }
+
+    eigenvalues = vec3_t<T>(m[0][0], m[1][1], m[2][2]);
 }
 
 using vec2 = vec2_t<float>;

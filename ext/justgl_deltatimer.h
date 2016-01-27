@@ -22,61 +22,33 @@
     SOFTWARE.
 */
 
-#ifndef JUSTGL_FS_H
-#define JUSTGL_FS_H
+#ifndef JUSTGL_DELTATIMER_H
+#define JUSTGL_DELTATIMER_H
 
-#include <cstdint>
-#include <utility>
-#include <string>
-#include <vector>
+#include "justgl.h"
 
-uint64_t GetFileTimestamp(const char* filename);
-
-class MappedFile;
-void swap(MappedFile& a, MappedFile& b);
-
-class MappedFile
+class DeltaTimer
 {
 public:
-    MappedFile()
-        : Data(nullptr)
-        , Size(0)
+    uint64_t LastTicks = 0;
+    uint64_t CurrTicks = 0;
+
+    uint64_t DeltaTicks = 0;
+    float DeltaSeconds = 0.0;
+
+    void Update()
     {
+        LastTicks = CurrTicks;
+        CurrTicks = GetCurrentTicks();
+        
+        if (LastTicks == 0)
+        {
+            LastTicks = CurrTicks;
+        }
+        
+        DeltaTicks = CurrTicks - LastTicks;
+        DeltaSeconds = (float)DeltaTicks / GetTicksPerSecond();
     }
-
-    // Unmaps
-    ~MappedFile();
-
-    MappedFile(const MappedFile&) = delete;
-    MappedFile& operator=(const MappedFile&) = delete;
-
-    MappedFile(MappedFile&& other)
-        : MappedFile()
-    {
-        swap(*this, other);
-    }
-
-    MappedFile& operator=(MappedFile&& other)
-    {
-        swap(*this, other);
-    }
-
-    char* Data;
-    uint64_t Size;
-    void* pImpl;
 };
 
-inline void swap(MappedFile& a, MappedFile& b)
-{
-    using std::swap;
-
-    swap(a.Data, b.Data);
-    swap(a.Size, b.Size);
-    swap(a.pImpl, b.pImpl);
-}
-
-MappedFile MapFileForRead(const char* filename);
-
-std::string CreateOpenFileDialog();
-
-#endif // JUSTGL_FS_H
+#endif // JUSTGL_DELTATIMER_H

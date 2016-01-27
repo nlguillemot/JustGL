@@ -40,7 +40,7 @@ void PrincipalComponentsFromPoints(
     const float(*pts)[3] = (const float (*)[3])pointXYZs;
 
     // compute the mean position
-    double m[3] = { 0.0, 0.0, 0.0 };
+    float m[3] = { 0.0, 0.0, 0.0 };
     for (int i = 0; i < nPoints; i++)
     {
         for (int j = 0; j < 3; j++)
@@ -54,12 +54,12 @@ void PrincipalComponentsFromPoints(
     }
 
     // covariance matrix: represents correlation between x,y,z coordinates
-    double cov[3][3] = {};
+    mat3 cov(0);
     for (int i = 0; i < nPoints; i++)
     {
-        double dx = pts[i][0] - m[0];
-        double dy = pts[i][1] - m[1];
-        double dz = pts[i][2] - m[2];
+        float dx = pts[i][0] - m[0];
+        float dy = pts[i][1] - m[1];
+        float dz = pts[i][2] - m[2];
 
         cov[0][0] += dx * dx;
         cov[1][0] += dx * dy;
@@ -78,166 +78,19 @@ void PrincipalComponentsFromPoints(
     cov[0][2] = cov[2][0];
     cov[1][2] = cov[2][1];
 
-    // compute covariance matrix, whose eigenvalues are of the principal components.
-    // finding the eigenvalues requires solving a cubic root.
-    // cubic root is L^3 + a * L^2 + b * L^1 + c, where L is lambda (for eigenvalue)
-    double a = 
-        - cov[0][0]
-        - cov[1][1]
-        - cov[2][2];
-    double b =
-        + cov[0][0] * cov[1][1]
-        + cov[0][0] * cov[2][2]
-        - cov[1][0] * cov[0][1]
-        - cov[2][0] * cov[0][2]
-        + cov[1][1] * cov[2][2]
-        - cov[2][1] * cov[1][2];
-    double c =
-        - cov[0][0] * cov[1][1] * cov[2][2]
-        + cov[0][0] * cov[2][1] * cov[1][2]
-        + cov[1][0] * cov[0][1] * cov[2][2]
-        - cov[1][0] * cov[2][1] * cov[0][2]
-        - cov[2][0] * cov[0][1] * cov[1][2]
-        + cov[2][0] * cov[1][1] * cov[0][2];
-    
-    // remove quadratic term of the cubic equation by substituting L = x - a / 3
-    // which gives x^3 + px + q = 0
-    // where p, q have the value below:
-    double p = -1.0 / 3.0 * a * a + b;
-    double q = 2.0 / 27.0 * a * a * a - 1.0 / 3.0 * a * b + c;
-
-    // to simplify math, compute p' and q'
-    double p_ = p / 3.0;
-    double q_ = q / 2.0;
-
-    // evaluate tweaked discriminant
-    double D_ = -(p_ * p_ * p_ + q_ * q_);
-    assert(D_ >= 0.0);
-    
-    double eigs[3];
-
-    if (D_ == 0.0)
-    {
-        double r = pow(-q_ + sqrt(-D_), 1.0 / 3.0);
-        eigs[0] = 2.0 * r;
-        eigs[1] = eigs[2] = -r;
-    }
-    else
-    {
-        // math magic from Mathematics for 3D Game Programming and Computer Graphics ch 6.1.2
-        double sqrtMinusP_ = sqrt(-p_);
-        double th = 1.0 / 3.0 * acos(-q_ / (p_ * sqrtMinusP_));
-
-        // crank out the eigenvalues
-        const double two_pi_by_3 = 2.09439510239;
-        eigs[0] = 2.0 * sqrtMinusP_ * cos(th);
-        eigs[1] = 2.0 * sqrtMinusP_ * cos(th + two_pi_by_3);
-        eigs[2] = 2.0 * sqrtMinusP_ * cos(th - two_pi_by_3);
-    }
-
-    for (int i = 0; i < 3; i++)
-    {
-        assert(!isnan(eigs[i]));
-    }
-
-    // the eigenvectors are the vectors x for which (C - L * Id) * x = 0
-    // this linear system can be solved with gaussian elimination.
-    // note that x represents a /span/ of values, so it has to be normalized afterwards.
-    for (int eigIdx = 0; eigIdx < 3; eigIdx++)
-    {
-        // initialize the matrix (C - L * Id).
-        // It will later be made upper triangular then solved.
-        double u[3][3];
-        for (int col = 0; col < 3; col++)
-        {
-            for (int row = 0; row < 3; row++)
-            {
-                if (col == row)
-                {
-                    u[col][row] = cov[col][row] - eigs[eigIdx];
-                }
-                else
-                {
-                    u[col][row] = cov[col][row];
-                }
-            }
-        }
-
-        // normalize each row to improve numerical stability
-        for (int row = 0; row < 3; row++)
-        {
-            double rowMax = 0.0f;
-            for (int col = 0; col < 3; col++)
-            {
-                rowMax = std::max(rowMax, std::abs(u[col][row]));
-            }
-            assert(rowMax > 0.0f); // singular otherwise
-            for (int col = 0; col < 3; col++)
-            {
-                u[col][row] /= rowMax;
-            }
-        }
-
-        // rhs is initially 0. it will be updated through elementary row operations.
-        double rhs[3] = { 0.0, 0.0, 0.0 };
-
-        // transform the matrix into an upper-triangular one
-        // done using elementary row operations on rows below the diagonal for each column
-        for (int col = 0; col < 3; col++)
-        {
-            // want u[col][col] to be as big as possible for numerical stability,
-            // so find the row below with the biggest absolute value and swap the rows.
-            double colMax = 0.0;
-            int colMaxRowIdx = -1;
-            for (int row = col; row < 3; row++)
-            {
-                if (std::abs(u[col][row]) > colMax)
-                {
-                    colMax = std::abs(u[col][row]);
-                    colMaxRowIdx = row;
-                }
-            }
-            
-            assert(colMaxRowIdx != -1); // if all rows are 0 in this column, no solution.
-
-            if (colMaxRowIdx != col)
-            {
-                // found a bigger row in this column, so swap the rows
-                for (int col2 = col; col2 < 3; col2++)
-                {
-                    std::swap(u[col2][col], u[col2][colMaxRowIdx]);
-                }
-                std::swap(rhs[col], rhs[colMaxRowIdx]);
-            }
-
-            // make each row below this one be zero valued in this column
-            for (int row = col + 1; row < 3; row++)
-            {
-                for (int col2 = col; col2 < 3; col2++)
-                {
-                    u[col2][row] -= u[col2][col] * u[col][row] / u[col][col];
-                }
-                rhs[row] -= rhs[col] * u[col][row] / u[col][col];
-            }
-        }
-
-        // now that we have an upper triangular matrix, solve it with backward substitution
-        for (int row = 2; row >= 0; row--)
-        {
-            // sum contribution of next rows to the answer
-            double urs = 0.0;
-            for (int row2 = row + 1; row2 < 3; row2++)
-            {
-                urs += u[row2][row] * rhs[row2];
-            }
-            principalComponents[eigIdx][row] = (float)(1.0 / u[row][row] * (rhs[row] - urs) * eigs[eigIdx]);
-        }
-    }
+    vec3 eigenvalues;
+    mat3 eigenvectors;
+    eigendecompose(cov, eigenvalues, eigenvectors);
 
     // now that we have the eigenvectors, just need to sort them by magnitude.
     double magSquared[3];
     for (int eigIdx = 0; eigIdx < 3; eigIdx++)
     {
+        for (int i = 0; i < 3; i++)
+        {
+            principalComponents[eigIdx][i] = eigenvectors[eigIdx][i] * eigenvalues[i];
+        }
+
         magSquared[eigIdx] =
             principalComponents[eigIdx][0] * principalComponents[eigIdx][0] +
             principalComponents[eigIdx][1] * principalComponents[eigIdx][1] +
@@ -263,12 +116,55 @@ void BoundingSphereFromPoints(
 {
     assert(nPoints > 0);
 
-    float principalComponents[3][3];
-    PrincipalComponentsFromPoints(
-        nPoints, pointXYZs,
-        principalComponents);
+    const vec3* pts = (const vec3*)pointXYZs;
 
-    const float(*pts)[3] = (const float(*)[3])pointXYZs;
+    vec3 mean = vec3(0);
+    for (int i = 0; i < nPoints; i++)
+    {
+        mean += pts[i];
+    }
+    mean /= float(nPoints);
+
+    // covariance matrix: correlation between x,y,z coordinates
+    mat3 cov(0);
+    for (int i = 0; i < nPoints; i++)
+    {
+        vec3 delta = pts[i] - mean;
+        
+        cov[0][0] += delta.x * delta.x;
+        cov[1][0] += delta.x * delta.y;
+        cov[1][1] += delta.y * delta.y;
+        cov[2][0] += delta.x * delta.z;
+        cov[2][1] += delta.y * delta.z;
+        cov[2][2] += delta.z * delta.z;
+    }
+    cov[0][0] /= nPoints;
+    cov[1][0] /= nPoints;
+    cov[1][1] /= nPoints;
+    cov[2][0] /= nPoints;
+    cov[2][1] /= nPoints;
+    cov[2][2] /= nPoints;
+    cov[0][1] = cov[1][0];
+    cov[0][2] = cov[2][0];
+    cov[1][2] = cov[2][1];
+
+    vec3 eigenvalues;
+    mat3 eigenvectors;
+    eigendecompose(cov, eigenvalues, eigenvectors);
+
+    // find the principal component
+    int principal = -1;
+    float principalLenSquared;
+    for (int i = 0; i < 3; i++)
+    {
+        eigenvectors[i] *= eigenvalues[i];
+        float lenSquared = lengthSquared(eigenvectors[i]);
+        if (principal == -1 || lenSquared > principalLenSquared)
+        {
+            principal = i;
+            principalLenSquared = lenSquared;
+        }
+    }
 
     // compute the points which are most and least aligned with the principal component
     float minDotProduct = INFINITY;
@@ -277,9 +173,9 @@ void BoundingSphereFromPoints(
     for (int i = 0; i < nPoints; i++)
     {
         float d =
-            pts[i][0] * principalComponents[0][0] +
-            pts[i][1] * principalComponents[0][1] +
-            pts[i][2] * principalComponents[0][2];
+            pts[i].x * eigenvectors[principal].x +
+            pts[i].y * eigenvectors[principal].y +
+            pts[i].z * eigenvectors[principal].z;
         
         if (d < minDotProduct)
         {
@@ -332,19 +228,6 @@ void BoundingSphereFromPoints(
     boundingSphere[3] = radius;
 }
 
-void NormalizePlaneEquation(float plane[4])
-{
-    float mag = sqrt(
-        plane[0] * plane[0] +
-        plane[1] * plane[1] +
-        plane[2] * plane[2]);
-
-    plane[0] = plane[0] / mag;
-    plane[1] = plane[1] / mag;
-    plane[2] = plane[2] / mag;
-    plane[3] = plane[3] / mag;
-}
-
 void FrustumFromMVP(const float mvp[16], float frustum[6][4])
 {
     const float(&p)[4][4] = (const float(&)[4][4])*mvp;
@@ -387,7 +270,16 @@ void FrustumFromMVP(const float mvp[16], float frustum[6][4])
 
     for (int i = 0; i < 6; i++)
     {
-        NormalizePlaneEquation(frustum[i]);
+        // normalize the plane equation
+        float mag = sqrt(
+            frustum[i][0] * frustum[i][0] +
+            frustum[i][1] * frustum[i][1] +
+            frustum[i][2] * frustum[i][2]);
+
+        frustum[i][0] = frustum[i][0] / mag;
+        frustum[i][1] = frustum[i][1] / mag;
+        frustum[i][2] = frustum[i][2] / mag;
+        frustum[i][3] = frustum[i][3] / mag;
     }
 }
 

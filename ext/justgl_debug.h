@@ -86,118 +86,57 @@ inline std::string FormatGLDebugCallback(GLenum source, GLenum type, GLuint id, 
     return ss.str();
 }
 
-struct DebugVertex
-{
-    vec3 Position;
-    vec4 Color;
-};
-
-struct DebugVertexBindingIndex
-{
-    enum Enum
-    {
-        DebugVerts,
-        Count
-    };
-};
-
-struct DebugVertexAttribIndex
-{
-    enum Enum
-    {
-        Position,
-        Color,
-        Count
-    };
-};
-
-class DebugGeometry;
-void swap(DebugGeometry& a, DebugGeometry& b);
-
 class DebugGeometry
 {
 public:
-    DebugGeometry()
-        : VertexArray(0)
-        , VertexBuffers{}
-        , VertexBuffersSizeInBytes{}
-        , IndirectDrawBuffer(0)
-        , IndirectDrawBufferSizeInBytes(0)
-    {
-    }
-    
+    DebugGeometry() = default;
     ~DebugGeometry()
     {
-        glDeleteVertexArrays(1, &VertexArray);
-        glDeleteBuffers((GLsizei)VertexBuffers.size(), VertexBuffers.data());
-        glDeleteBuffers(1, &IndirectDrawBuffer);
+        glDeleteShader(VS);
+        glDeleteShader(FS);
+        glDeleteProgram(SP);
+        glDeleteBuffers(1, &VBO);
+        glDeleteVertexArrays(1, &VAO);
     }
 
     DebugGeometry(const DebugGeometry&) = delete;
     DebugGeometry& operator=(const DebugGeometry&) = delete;
+    DebugGeometry(DebugGeometry&& other) = delete;
+    DebugGeometry& operator=(DebugGeometry&& other) = delete;
 
-    DebugGeometry(DebugGeometry&& other)
-        : DebugGeometry()
-    {
-        swap(*this, other);
-    }
+    void Init();
+    
+    void NewFrame(const mat4& mvp);
 
-    DebugGeometry& operator=(DebugGeometry&& other)
-    {
-        swap(*this, other);
-    }
-
-    void Reset();
-
-    void AddLine(const DebugVertex& start, const DebugVertex& end);
-    void AddLine(const vec3& start, const vec3& end, const vec4& color)
-    {
-        AddLine(DebugVertex{ start, color }, DebugVertex{ end, color });
-    }
-
-    void AddTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c);
-    void AddTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color)
-    {
-        AddTriangle(DebugVertex{ a, color }, DebugVertex{ b, color }, DebugVertex{ c, color });
-    }
-
-    void AddWireTriangle(const DebugVertex& a, const DebugVertex& b, const DebugVertex& c);
-    void AddWireTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color)
-    {
-        AddWireTriangle(DebugVertex{ a, color }, DebugVertex{ b, color }, DebugVertex{ c, color });
-    }
-
+    void AddLine(const vec3& start, const vec3& end, const vec4& color);
+    void AddTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color);
+    void AddWireTriangle(const vec3& a, const vec3& b, const vec3& c, const vec4& color);
+    void AddCircle(const vec3& center, float radius, const vec3& normal, const vec4& color);
     void AddWireSphere(const vec3& center, float radius, const vec4& color);
-
+    void AddWireAABB(const vec3& minCorner, const vec3& maxCorner, const vec4& color);
+    void AddWireArrow(const vec3& start, const vec3& end, const vec4& color);
     void AddFrustumFromMVP(const mat4& mvp, const vec4& color);
     void AddWireFrustumFromMVP(const mat4& mvp, const vec4& color);
     
-    void UpdateBuffers();
+    void Render();
 
-    std::array<std::vector<DebugVertex>, DebugVertexBindingIndex::Count> CPUVertexData;
+    struct DebugVertex
+    {
+        vec4 Position;
+        vec4 Color;
+    };
+    std::vector<DebugVertex> CPUVertexData;
     std::vector<GLDrawArraysIndirectCommand> CPUIndirectDrawBuffer;
     std::vector<GLenum> DrawPrimitiveTypes;
 
-    GLuint VertexArray;
-    std::array<GLuint, DebugVertexBindingIndex::Count> VertexBuffers;
-    std::array<GLsizei, DebugVertexBindingIndex::Count> VertexBuffersSizeInBytes;
-    GLuint IndirectDrawBuffer;
-    GLsizei IndirectDrawBufferSizeInBytes;
+    mat4 MVP;
+
+    GLuint VS = 0;
+    GLuint FS = 0;
+    GLuint SP = 0;
+    GLuint VAO = 0;
+    GLuint VBO = 0;
+    GLsizei VBOSizeInBytes = 0;
 };
-
-inline void swap(DebugGeometry& a, DebugGeometry& b)
-{
-    using std::swap;
-    
-    swap(a.CPUVertexData, b.CPUVertexData);
-    swap(a.CPUIndirectDrawBuffer, b.CPUIndirectDrawBuffer);
-    swap(a.DrawPrimitiveTypes, b.DrawPrimitiveTypes);
-
-    swap(a.VertexArray, b.VertexArray);
-    swap(a.VertexBuffers, b.VertexBuffers);
-    swap(a.VertexBuffersSizeInBytes, b.VertexBuffersSizeInBytes);
-    swap(a.IndirectDrawBuffer, b.IndirectDrawBuffer);
-    swap(a.IndirectDrawBufferSizeInBytes, b.IndirectDrawBufferSizeInBytes);
-}
 
 #endif // JUSTGL_DEBUG_H

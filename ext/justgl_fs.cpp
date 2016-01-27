@@ -22,6 +22,7 @@
     SOFTWARE.
 */
 
+#include "justgl.h"
 #include "justgl_fs.h"
 
 #ifdef _WIN32
@@ -29,6 +30,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
+#include <commdlg.h>
 #include <cstdio>
 
 static bool CheckWin32(BOOL b, const WCHAR* info)
@@ -206,6 +208,34 @@ MappedFile::~MappedFile()
         }
         delete (Win32FileMapping*)pImpl;
     }
+}
+
+std::string CreateOpenFileDialog()
+{
+    WCHAR filenameBuf[5096];
+    filenameBuf[0] = L'\0';
+
+    OPENFILENAMEW ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = (HWND)GetNativeWindowHandle();
+    ofn.lpstrFile = filenameBuf;
+    ofn.nMaxFile = sizeof(filenameBuf) / sizeof(*filenameBuf);
+    ofn.lpstrFilter = L"All\0*.*\0";
+    ofn.nFilterIndex = 1;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+    GetCurrentDirectoryW(sizeof(filenameBuf), filenameBuf);
+    if (!GetOpenFileNameW(&ofn))
+    {
+        return "";
+    }
+
+    int length = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, filenameBuf, -1, NULL, 0, NULL, NULL);
+    std::string filename(length + 1, 0);
+    int result = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, filenameBuf, -1, &filename[0], length + 1, NULL, NULL);
+    
+    return filename;
 }
 
 #endif // _WIN32
