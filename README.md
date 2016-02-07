@@ -1,17 +1,16 @@
 # JustGL
+
 Just GL it!
 
 ## How to use
-1. Add `justgl.h` to your project (from this repo.)
-2. Create `justgl.cpp` in your project (as below.)
-3. Create `mygl.cpp` in your project (as below.)
-4. Start filling in `mygl.cpp`.
 
-## `justgl.cpp`
-    #define JUSTGL_IMPLEMENTATION
-    #include "justgl.h"
+1. Add `justgl.h` to your project (from this repo.)
+2. Start filling in `mygl.cpp`, starting from the template below.
+
+Optionally, move the JUSTGL_IMPLEMENTATION into its own justgl.cpp for cleanliness.
 
 ## `mygl.cpp`
+    #define JUSTGL_IMPLEMENTATION
     #include "justgl.h"
 
     void ConfigGL(WindowConfig* pConfig)
@@ -41,9 +40,3 @@ Just GL it!
         
         return 1;
     }
-
-## Extensions
-
-There are utilities in the `ext` folder you can also add to your project.
-
-They are not necessary, and designed for my own rapid prototyping purposes.
